@@ -98,7 +98,7 @@ The account boundary is no longer the dev/prod security boundary. Isolation come
 
 **Cost rules**
 
-- AWS Budgets and email alerts configured **before** the first `terraform apply`
+- AWS Budgets and email alerts configured **before** the first billable infrastructure deployment
 - `make down` at the end of every AWS session; next session opens with a Cost Explorer check
 - The account starts with $100 of promotional AWS credit. Track **gross cost before credits** so the project proves its own cost discipline
 - Monthly gross AWS spend should stay below $30; the aim is to finish the AWS work inside the initial credit, not to depend on it
@@ -211,7 +211,11 @@ EKS Pod Identity, AWS Load Balancer Controller, Karpenter, External Secrets agai
 
 ## 6. Engineering Standards
 
-**Branching.** `main` protected and always deployable. Short-lived `feat/`, `fix/`, `chore/`, `docs/`, `ci/`, `refactor/` branches. No direct pushes; PR with required status checks.
+**Branching — trunk-based development.** One long-lived branch: `main`. Protected and always deployable. Short-lived `feat/`, `fix/`, `chore/`, `docs/`, `ci/`, `refactor/` branches, merged via PR with required status checks. No direct pushes.
+
+No `develop`, no `release/*`, no `hotfix/*`. Short-lived feature branches are part of trunk-based development, not a departure from it — what makes it trunk-based is that only one branch is long-lived.
+
+GitFlow was considered and rejected. It suits versioned releases with long stabilisation periods; this project deploys continuously to dev and promotes an immutable digest to prod, so a release branch adds merge overhead without adding control. The control is the approval on the prod GitOps PR. Trigger to revisit: needing to support several released versions at once. Record as an ADR.
 
 **Commits.** Conventional Commits, CI-enforced.
 
@@ -455,12 +459,59 @@ PR:      lint → unit + integration (Testcontainers) → SonarCloud gate
 main:    build image (pinned base digest) → tag with git SHA
          → Trivy image scan → Syft SBOM attached → Cosign keyless sign
          → push to ECR (persistent registry in the same AWS account)
+
+Stage 5 onward:
          → open PR against as-bank-gitops with the new digest
 ```
 
+### Workflow layout and triggers
+
+Workflows live in the repo whose code they build — a GitHub Actions workflow can only be triggered by events in its own repository.
+
+| Repo             | Workflows                                                                                 |
+| ---------------- | ----------------------------------------------------------------------------------------- |
+| `as-bank-app`    | `ci.yml`, `release.yml`, plus reusable workflows                                          |
+| `as-bank-infra`  | `terraform-plan.yml`, `terraform-apply.yml`, `environment-up.yml`, `environment-down.yml` |
+| `as-bank-gitops` | Manifest validation only — Argo CD reads this repo, it is not a pipeline                  |
+
+**Three triggers, three jobs**
+
+| Trigger                    | Runs                                                     | Purpose                                                                                                              |
+| -------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `push` to a feature branch | Tests, Sonar, Trivy fs, Gitleaks, ZAP baseline           | Fast feedback while working. Nothing published                                                                       |
+| `pull_request` to `main`   | The same suite, registered as **required status checks** | Enforcement — merge is blocked until they pass                                                                       |
+| `push` to `main`           | Build, scan, SBOM, sign, push to ECR                     | Produce and publish the artefact. The only trigger that touches AWS; from Stage 5 onward it also opens the GitOps PR |
+
+Fast feedback and enforcement are different jobs. The push run gives speed; the PR run gives the guarantee. Keep both.
+
+Split `ci.yml` (triggers 1 and 2) from `release.yml` (trigger 3) so the AWS-touching job cannot run on a feature branch.
+
+**Path filters are mandatory.** Without them a README edit rebuilds four images:
+
+```yaml
+on:
+  push:
+    paths:
+      - "customer-service/**"
+```
+
+**Reusable workflows, not copy-paste.** The three Java services have near-identical CI. Write it once as a `workflow_call` workflow and call it per service:
+
+```yaml
+jobs:
+  build:
+    uses: ./.github/workflows/reusable-java-ci.yml
+    with:
+      service: customer-service
+```
+
+Duplicated pipeline logic drifts. One service ends up on a different scanner version or a weaker gate, and nobody notices until it matters. The same argument as the shared Helm library chart.
+
+Pin third-party actions to a commit SHA, not a tag — a tag can be moved, and a moved tag in a build pipeline is a supply-chain compromise.
+
 ### CI → GitOps handoff
 
-**CI opens a pull request. It never pushes directly.**
+From Stage 5 onward, after the GitOps application structure exists, **CI opens a pull request. It never pushes directly.**
 
 - **Dev** — auto-merged once checks pass; Argo CD auto-syncs
 - **Prod** — human approval required; Argo CD Application `automated: false`
@@ -478,12 +529,12 @@ terraform fmt -check → validate → tflint → Checkov (blocking on high)
 
 **Apply trigger by layer**
 
-| Layer         | Trigger                                          | Reason                                              |
-| ------------- | ------------------------------------------------ | --------------------------------------------------- | ------------------------------- |
-| 0 — Bootstrap | Merge to `main`                                  | Account-wide persistent resources, changed in place |
-| 1 — Network   | Merge to `main`                                  | Persistent dev/prod VPC state, changed in place     |
-| 2 — Cluster   | Manual `workflow_dispatch` with `environment=dev | prod`                                               | Created and destroyed on demand |
-| 3 — Data      | Manual `workflow_dispatch` with `environment=dev | prod`                                               | Created and destroyed on demand |
+| Layer         | Trigger                                                                 | Reason                                              |
+| ------------- | ----------------------------------------------------------------------- | --------------------------------------------------- |
+| 0 — Bootstrap | Merge to `main`                                                         | Account-wide persistent resources, changed in place |
+| 1 — Network   | Merge to `main`                                                         | Persistent dev/prod VPC state, changed in place     |
+| 2 — Cluster   | Manual `workflow_dispatch` with `environment=dev` or `environment=prod` | Created and destroyed on demand                     |
+| 3 — Data      | Manual `workflow_dispatch` with `environment=dev` or `environment=prod` | Created and destroyed on demand                     |
 
 `make up` and `make down` are thin wrappers that trigger the workflow rather than running Terraform locally. Dev is the default; prod must be named explicitly:
 
@@ -507,7 +558,7 @@ Record the per-layer trigger model as an ADR.
 
 DAST needs a running target, which an ephemeral cluster does not always provide. Two levels, run in different places.
 
-**Baseline scan — Stage 2, in CI, on every PR.** Bring the app up with Docker Compose inside the GitHub Actions runner, run the ZAP baseline scan against `localhost`, tear it down. No AWS, no cost, no external target registration. Catches missing security headers, cookie flags, information disclosure, and obvious injection surfaces. Fails the build on high severity; warns on medium.
+**Baseline scan — Stage 3, in CI, on every PR.** Bring the app up with Docker Compose inside the GitHub Actions runner, run the ZAP baseline scan against `localhost`, tear it down. No AWS, no cost, no external target registration. Catches missing security headers, cookie flags, information disclosure, and obvious injection surfaces. Fails the build on high severity; warns on medium.
 
 **Authenticated scan — Stage 7, against the live dev environment, run manually.** An unauthenticated scan of a banking API returns 401 everywhere and finds nothing meaningful. Configure ZAP with a valid Cognito access token so it can probe behind the login:
 
@@ -618,17 +669,21 @@ Not built. Each gets an ADR stating the use case, why it is excluded, and the tr
 
 ### Core stages
 
-| Stage                       | Effort | Exit criteria                                                                                                                                                                                      |
-| --------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **0 — Foundations**         | 6–8h   | NFR document; three repos; branch protection; pre-commit hooks; ADR process; ADR 0001 (repo split) and 0002 (single-account strategy)                                                              |
-| **1 — Walking skeleton**    | 8–10h  | `customer-service` running locally: one endpoint, Flyway, Spring Security resource server against a mock issuer, Actuator with histogram buckets and one business metric; React shell calling it   |
-| **2 — CI and supply chain** | 16–20h | Signed image with attached SBOM in ECR; a PR visibly failing on an injected CVE; negative security tests in the gate                                                                               |
-| **3 — AWS foundation**      | 16–20h | One standalone AWS account; MFA-protected human access via `aws login` and STS roles; GitHub OIDC roles; Terraform Layer 0; budgets alerting on a test threshold; zero static access keys anywhere |
-| **4 — Network and cluster** | 28–35h | Layers 1–2 in Terraform with separate dev/prod state; Karpenter; Terraform CI with plan-on-PR; `make up` / `make down` working; Cost Explorer confirms no residual ephemeral spend after teardown  |
-| **5 — GitOps**              | 16–20h | Argo CD; app-of-apps; `platform/` and `apps/` split; a merged PR produces a running pod with no human `kubectl`                                                                                    |
-| **6 — Hardening**           | 16–20h | External Secrets; Pod Identity; Kyverno in enforce mode; signature verification; NetworkPolicies; RBAC; PSA. Screenshot the cluster rejecting an unsigned image and a root container               |
-| **7 — Full application**    | 35–40h | Three services; frontend in-cluster; RDS; real Cognito (issuer swap only); Route 53, ACM, CloudFront; a real login and transfer end to end                                                         |
-| **8 — Observability**       | 16–20h | Prometheus, Grafana, Loki, Tempo, OpenTelemetry; one trace spanning all three services; SLO dashboard with burn-rate alerts                                                                        |
+| Stage                       | Effort | Exit criteria                                                                                                                                                                                                                                                                                                 |
+| --------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0 — Foundations**         | 6–8h   | NFR document; three repos; branch protection; pre-commit hooks; ADR process; ADR 0001 (repo split) and 0002 (single-account strategy)                                                                                                                                                                         |
+| **1 — Walking skeleton**    | 8–10h  | `customer-service` running locally: one endpoint, Flyway, Spring Security resource server against a mock issuer, Actuator with histogram buckets and one business metric; React shell calling it                                                                                                              |
+| **2 — AWS foundation**      | 16–20h | One standalone AWS account; MFA-protected human access via `aws login` and STS roles; GitHub OIDC roles; Terraform Layer 0 including ECR; budgets alerting on a test threshold; zero static access keys anywhere                                                                                              |
+| **3 — CI and supply chain** | 16–20h | Application CI gate complete; signed image with attached SBOM pushed to ECR through OIDC, verifiable with `cosign verify`; a PR visibly failing on an injected CVE; negative security tests in the gate                                                                                                       |
+| **4 — Network and cluster** | 28–35h | Layers 1–2 in Terraform with separate dev/prod state; Karpenter; Terraform CI with plan-on-PR; `make up` / `make down` working; Cost Explorer confirms no residual ephemeral spend after teardown                                                                                                             |
+| **5 — GitOps**              | 16–20h | Argo CD; app-of-apps; `platform/` and `apps/` split; a merged PR produces a running pod with no human `kubectl`                                                                                                                                                                                               |
+| **6 — Hardening**           | 16–20h | External Secrets; Pod Identity; Kyverno in enforce mode; signature verification; NetworkPolicies; RBAC; PSA. Screenshot the cluster rejecting an unsigned image and a root container                                                                                                                          |
+| **7 — Full application**    | 35–40h | Three services; frontend in-cluster; RDS; real Cognito (issuer swap only); 5–10 demo Cognito users provisioned through Terraform with matching customer and account seed data through Flyway; Route 53, ACM, CloudFront; a real login and transfer end to end. Customer self-registration is not implemented. |
+| **8 — Observability**       | 16–20h | Prometheus, Grafana, Loki, Tempo, OpenTelemetry; one trace spanning all three services; SLO dashboard with burn-rate alerts                                                                                                                                                                                   |
+
+**Why AWS foundation comes before CI.** Cosign stores a signature as an OCI artefact beside the image, so the signing step needs a registry to be verifiable at all. Building the application pipeline before ECR exists would mean publishing somewhere temporary and repointing later. Real teams never hit this — the platform foundation exists long before anyone writes an application pipeline. Stage 2 creates the account, identity, Terraform Layer 0 and ECR; Stage 3 then builds a pipeline that has somewhere to publish.
+
+**Bootstrap exception.** Terraform Layer 0 cannot initially use an S3 backend that does not exist yet, and CI cannot assume IAM roles that Layer 0 has not created yet. Apply the minimal bootstrap once from the workstation using the MFA-protected operator session and local state. After the state bucket exists, migrate the state into the S3 backend with `terraform init -migrate-state`. Commit only the Terraform and backend configuration. Never commit `.tfstate` files. Every routine apply after bootstrap runs through CI. Document this as the single manual apply in the project.
 
 ### Checkpoint — after Stage 8
 
@@ -779,37 +834,62 @@ Decisions: single-AZ NAT in dev (ADR 0007)
 1. Commit and push all work
 2. Update Section 19 of this document
 3. Add the session log entry, including any unresolved hypothesis
-4. `make down` and confirm teardown
+4. Tear down resources and confirm teardown. Use `make down` once the environment workflow exists; before then, stop local processes and run `docker compose down` where applicable
 
 ---
 
 ## 19. Current Status
 
-**Stage:** 1 — Walking skeleton not started
+**Stage:** 2 — AWS foundation not started
 
 **Completed**
 
 1. NFR document
 2. Three fresh public repositories
 3. Protected `main` branches with PR-only workflow
-4. Pre-commit hooks with Gitleaks and Terraform formatting checks
+4. Pre-commit hooks with Gitleaks and formatting/lint checks
 5. ADR process established
 6. ADR 0001 — repository split
 7. ADR 0002 — single-account AWS strategy
+8. Stage 1 local toolchain verified: Java 21, Maven, Docker, Docker Compose, Node.js, and npm
+9. `customer-service` walking skeleton completed and merged to `main`
+10. PostgreSQL 16 and Flyway migration verified
+11. Mock OAuth2 issuer and Spring Security resource-server authentication verified
+12. Customer ownership authorization verified with 401, 403, and successful 200 paths
+13. Correlation IDs and RFC 7807 error responses verified
+14. Actuator management port, HTTP histogram buckets, and customer lookup business metric verified
+15. React 19 frontend shell completed and merged to `main`
+16. React Router, Tailwind CSS, and shadcn/ui frontend foundation completed
+17. Runtime frontend configuration through `config.json` implemented
+18. Frontend successfully called secured `customer-service` and rendered the seeded customer
+19. Frontend ESLint, Prettier, and production build verified
+20. Stage 1 — Walking skeleton exit criteria completed
 
 **Open decisions**
-None blocking Stage 1.
+
+None blocking Stage 2.
 
 **Next actions**
 
-1. Start `customer-service`
-2. Add one versioned API endpoint
-3. Add PostgreSQL and Flyway
-4. Add Spring Security resource-server configuration against a local mock issuer
-5. Add Actuator histogram metrics and one business metric
-6. Create the React shell and call `customer-service`
+1. Begin Stage 2 — AWS foundation
+2. Create the standalone AWS account; enable MFA on root; create the named operator IAM user with MFA and no access keys
+3. Configure AWS Budgets and email alerts before creating billable infrastructure, then verify one fires on a test threshold
+4. Create the GitHub OIDC provider and repo-specific CI roles with separate trust for application release, infrastructure PR plan, and infrastructure apply workflows. Do not use an owner-wide repository wildcard
+5. Write Terraform Layer 0: state bucket with native locking, ECR repositories, Route 53 hosted zone, and the persistent IAM resources
+6. Apply the minimal Layer 0 bootstrap once from the workstation, migrate the state into the S3 backend with `terraform init -migrate-state`, and commit only the Terraform/backend configuration
+7. Confirm `aws sts get-caller-identity` works through an assumed role with no static keys anywhere
 
----
+**Stage 3 (CI and supply chain) then follows:**
+
+1. Create the application PR CI workflow
+2. Gate PRs on lint, unit and integration tests, SonarCloud, Trivy filesystem scan, Gitleaks, negative security tests, and the ZAP baseline scan
+3. Build the application image from `main` using a pinned base image
+4. Scan the image with Trivy
+5. Generate and attach an SBOM with Syft
+6. Sign the image with Cosign using GitHub OIDC
+7. Push the signed image to ECR through the OIDC role and verify it with `cosign verify`
+8. Demonstrate a PR failing because of an intentionally injected CVE
+9. Demonstrate the negative security tests failing the CI gate
 
 ## 20. Prompts
 
