@@ -840,7 +840,7 @@ Decisions: single-AZ NAT in dev (ADR 0007)
 
 ## 19. Current Status
 
-**Stage:** 2 — AWS foundation not started
+**Stage:** 2 — AWS foundation in progress; Budget test alert delivery pending
 
 **Completed**
 
@@ -852,28 +852,29 @@ Decisions: single-AZ NAT in dev (ADR 0007)
 26. ADR 0003 — trunk-based development
 27. Terraform Layer 0 bootstrap started using the documented local-state bootstrap exception
 28. $30/month AWS Budget created through Terraform with promotional credits excluded
-29. Budget notifications verified at $0.01 actual spend, 80% actual spend, and 100% actual spend
-30. Initial AWS inventory verified: no existing S3 buckets, ECR repositories, Route 53 hosted zones, GitHub OIDC providers, or AS Bank IAM roles
+29. Budget notification configuration verified at $0.01 actual spend, 80% actual spend, and 100% actual spend
+30. Initial AWS inventory verified before bootstrap
+31. Terraform Layer 0 applied and verified with no unexpected destroys
+32. Persistent S3 state bucket created with versioning, encryption, public-access blocking, and native state locking
+33. Four persistent ECR repositories created with immutable tags and scan-on-push
+34. Route 53 hosted zone created and Hostinger delegation verified through Google and Cloudflare DNS
+35. GitHub OIDC provider plus application-release, infrastructure-plan, and infrastructure-apply roles created
+36. MFA-protected human STS operator role created and verified with a fresh role session
+37. Direct AdministratorAccess removed from the login user and moved behind the operator role
+38. Old static AWS CLI credentials removed; the project operator has zero IAM access keys
+39. Bootstrap state migrated from local state to the S3 backend with `terraform init -migrate-state`
+40. Remote state verified with a zero-drift Terraform plan
 
 **Open decisions**
 
-None blocking the remaining Layer 0 implementation.
+None.
 
 **Next actions**
 
-1. Implement the remaining Terraform Layer 0 resources
-2. Create the S3 Terraform state bucket with native locking
-3. Create the persistent ECR repositories
-4. Create the Route 53 hosted zone
-5. Create the GitHub OIDC provider
-6. Create separate application-release, infrastructure-plan, and infrastructure-apply IAM roles with repository-specific trust
-7. Create the human STS operator role and move working permissions away from direct operator permissions
-8. Run Terraform fmt, validate, and plan; review before applying
-9. Apply and verify all Layer 0 resources
-10. Configure the S3 backend and migrate bootstrap state with `terraform init -migrate-state`
-11. Verify Terraform reads the migrated remote state
-12. Verify the Budget test alert is received
-13. Remove the old static AWS CLI credentials only after the new access path is fully proven
+1. Wait for AWS Budgets actual spend to exceed $0.01 and verify the test alert email is received
+2. Merge the AWS foundation PR after final review
+3. Mark Stage 2 complete
+4. Begin Stage 3 — CI and supply chain
 
 **Stage 3 (CI and supply chain) then follows:**
 
