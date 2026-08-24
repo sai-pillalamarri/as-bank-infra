@@ -840,44 +840,41 @@ Decisions: single-AZ NAT in dev (ADR 0007)
 
 ## 19. Current Status
 
-**Stage:** 2 — AWS foundation not started
+**Stage:** 2 — AWS foundation in progress; Budget test alert delivery pending
 
 **Completed**
 
-1. NFR document
-2. Three fresh public repositories
-3. Protected `main` branches with PR-only workflow
-4. Pre-commit hooks with Gitleaks and formatting/lint checks
-5. ADR process established
-6. ADR 0001 — repository split
-7. ADR 0002 — single-account AWS strategy
-8. Stage 1 local toolchain verified: Java 21, Maven, Docker, Docker Compose, Node.js, and npm
-9. `customer-service` walking skeleton completed and merged to `main`
-10. PostgreSQL 16 and Flyway migration verified
-11. Mock OAuth2 issuer and Spring Security resource-server authentication verified
-12. Customer ownership authorization verified with 401, 403, and successful 200 paths
-13. Correlation IDs and RFC 7807 error responses verified
-14. Actuator management port, HTTP histogram buckets, and customer lookup business metric verified
-15. React 19 frontend shell completed and merged to `main`
-16. React Router, Tailwind CSS, and shadcn/ui frontend foundation completed
-17. Runtime frontend configuration through `config.json` implemented
-18. Frontend successfully called secured `customer-service` and rendered the seeded customer
-19. Frontend ESLint, Prettier, and production build verified
-20. Stage 1 — Walking skeleton exit criteria completed
+21. New AWS account access verified
+22. Root account protected with MFA
+23. `as-bank-operator` IAM user created with MFA and no static access keys
+24. Temporary CLI authentication verified through `aws login`
+25. `us-east-1` selected as the primary workload region
+26. ADR 0003 — trunk-based development
+27. Terraform Layer 0 bootstrap started using the documented local-state bootstrap exception
+28. $30/month AWS Budget created through Terraform with promotional credits excluded
+29. Budget notification configuration verified at $0.01 actual spend, 80% actual spend, and 100% actual spend
+30. Initial AWS inventory verified before bootstrap
+31. Terraform Layer 0 applied and verified with no unexpected destroys
+32. Persistent S3 state bucket created with versioning, encryption, public-access blocking, and native state locking
+33. Four persistent ECR repositories created with immutable tags and scan-on-push
+34. Route 53 hosted zone created and Hostinger delegation verified through Google and Cloudflare DNS
+35. GitHub OIDC provider plus application-release, infrastructure-plan, and infrastructure-apply roles created
+36. MFA-protected human STS operator role created and verified with a fresh role session
+37. Direct AdministratorAccess removed from the login user and moved behind the operator role
+38. Old static AWS CLI credentials removed; the project operator has zero IAM access keys
+39. Bootstrap state migrated from local state to the S3 backend with `terraform init -migrate-state`
+40. Remote state verified with a zero-drift Terraform plan
 
 **Open decisions**
 
-None blocking Stage 2.
+None.
 
 **Next actions**
 
-1. Begin Stage 2 — AWS foundation
-2. Create the standalone AWS account; enable MFA on root; create the named operator IAM user with MFA and no access keys
-3. Configure AWS Budgets and email alerts before creating billable infrastructure, then verify one fires on a test threshold
-4. Create the GitHub OIDC provider and repo-specific CI roles with separate trust for application release, infrastructure PR plan, and infrastructure apply workflows. Do not use an owner-wide repository wildcard
-5. Write Terraform Layer 0: state bucket with native locking, ECR repositories, Route 53 hosted zone, and the persistent IAM resources
-6. Apply the minimal Layer 0 bootstrap once from the workstation, migrate the state into the S3 backend with `terraform init -migrate-state`, and commit only the Terraform/backend configuration
-7. Confirm `aws sts get-caller-identity` works through an assumed role with no static keys anywhere
+1. Wait for AWS Budgets actual spend to exceed $0.01 and verify the test alert email is received
+2. Merge the AWS foundation PR after final review
+3. Mark Stage 2 complete
+4. Begin Stage 3 — CI and supply chain
 
 **Stage 3 (CI and supply chain) then follows:**
 
