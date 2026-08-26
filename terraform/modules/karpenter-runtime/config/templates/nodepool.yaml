@@ -30,17 +30,12 @@ spec:
           values:
             - "{{ .Values.capacityType }}"
 
-        - key: karpenter.k8s.aws/instance-category
+        # The AWS Free account plan rejects other EC2 instance types before launch.
+        - key: node.kubernetes.io/instance-type
           operator: In
           values:
-            - c
-            - m
-            - r
-
-        - key: karpenter.k8s.aws/instance-generation
-          operator: Gt
-          values:
-            - "5"
+            - c7i-flex.large
+            - m7i-flex.large
 
       expireAfter: 720h
 

@@ -8,7 +8,7 @@ locals {
   kubernetes_version = "1.35"
 
   bootstrap_instance_types = [
-    "t3.medium",
+    "c7i-flex.large",
   ]
 
   bootstrap_min_size     = 1
