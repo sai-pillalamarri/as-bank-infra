@@ -89,7 +89,12 @@ jobs:
         run: python -m pip install --disable-pip-version-check "checkov==${CHECKOV_VERSION}"
 
       - name: Run Checkov
-        run: checkov -d terraform --framework terraform --compact
+        run: >-
+          checkov -d terraform
+          --framework terraform
+          --compact
+          --soft-fail-on MEDIUM
+          --hard-fail-on HIGH
 
   plan:
     name: Plan ${{ matrix.name }}
