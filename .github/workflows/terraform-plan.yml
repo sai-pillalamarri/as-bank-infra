@@ -202,6 +202,11 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          TF_VAR_budget_alert_email: ${{ matrix.name == 'bootstrap' && secrets.BOOTSTRAP_BUDGET_ALERT_EMAIL || '' }}
+          TF_VAR_github_owner: ${{ matrix.name == 'bootstrap' && vars.BOOTSTRAP_GITHUB_OWNER || '' }}
+          TF_VAR_github_owner_id: ${{ matrix.name == 'bootstrap' && vars.BOOTSTRAP_GITHUB_OWNER_ID || '' }}
+          TF_VAR_as_bank_app_repository_id: ${{ matrix.name == 'bootstrap' && vars.BOOTSTRAP_APP_REPOSITORY_ID || '' }}
+          TF_VAR_as_bank_infra_repository_id: ${{ matrix.name == 'bootstrap' && vars.BOOTSTRAP_INFRA_REPOSITORY_ID || '' }}
         run: |
           set -euo pipefail
 
