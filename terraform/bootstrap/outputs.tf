@@ -45,3 +45,19 @@ output "operator_role_arn" {
   description = "MFA-protected role used for human AWS access."
   value       = aws_iam_role.operator.arn
 }
+
+output "infrastructure_environment_plan_role_arns" {
+  description = "Environment-specific roles assumed by Terraform pull-request plans."
+  value = {
+    for environment, role in aws_iam_role.infrastructure_environment_plan :
+    environment => role.arn
+  }
+}
+
+output "infrastructure_environment_apply_role_arns" {
+  description = "Environment-specific roles assumed by Terraform apply workflows."
+  value = {
+    for environment, role in aws_iam_role.infrastructure_environment_apply :
+    environment => role.arn
+  }
+}

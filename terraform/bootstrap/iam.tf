@@ -206,6 +206,9 @@ resource "aws_iam_role" "operator" {
 }
 
 resource "aws_iam_role_policy_attachment" "operator_admin" {
+
+  #checkov:skip=CKV_AWS_274:AdministratorAccess is intentionally behind the MFA-protected operator STS role; the login user has no direct admin policy.
+
   role = aws_iam_role.operator.name
 
   # Administrative access moves behind MFA role assumption instead of staying on the login user.
@@ -213,6 +216,8 @@ resource "aws_iam_role_policy_attachment" "operator_admin" {
 }
 
 resource "aws_iam_user_policy" "operator_assume_role" {
+  #checkov:skip=CKV_AWS_40:The single login user can only assume the MFA-protected operator role; adding an IAM group would not create another security boundary.
+
   name = "as-bank-assume-operator-role"
   user = var.operator_user_name
 
