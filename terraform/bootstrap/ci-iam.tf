@@ -204,6 +204,7 @@ resource "aws_iam_role_policy" "infrastructure_environment_network_write" {
           "ec2:ReleaseAddress",
           "ec2:ReplaceRoute",
           "ec2:ReplaceRouteTableAssociation",
+          "ec2:RevokeSecurityGroupEgress",
           "ec2:RevokeSecurityGroupIngress",
         ]
         Resource = "*"
