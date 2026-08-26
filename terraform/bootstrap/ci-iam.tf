@@ -383,6 +383,9 @@ resource "aws_iam_role_policy_attachment" "infrastructure_apply_read_only" {
 }
 
 resource "aws_iam_role_policy" "infrastructure_apply_bootstrap_write" {
+  #checkov:skip=CKV_AWS_355:Wildcard statements are limited to account-level bootstrap actions; other mutable AS Bank resources are scoped.
+  #checkov:skip=CKV_AWS_290:Some bootstrap APIs cannot all be expressed with resource ARNs; Spot service-linked-role creation is constrained by iam:AWSServiceName.
+
   name = "as-bank-bootstrap-write"
   role = aws_iam_role.infrastructure_apply.id
 

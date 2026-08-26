@@ -1,4 +1,7 @@
 resource "aws_ecr_repository" "application" {
+
+  #checkov:skip=CKV_AWS_136:ECR already encrypts images at rest with AES-256; a customer-managed KMS key is outside this project's key-management scope.
+
   for_each = local.ecr_repositories
 
   name                 = "as-bank/${each.value}"

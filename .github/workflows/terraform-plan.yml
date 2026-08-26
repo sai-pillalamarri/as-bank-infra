@@ -93,8 +93,6 @@ jobs:
           checkov -d terraform
           --framework terraform
           --compact
-          --soft-fail-on MEDIUM
-          --hard-fail-on HIGH
 
   plan:
     name: Plan ${{ matrix.name }}

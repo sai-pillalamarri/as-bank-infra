@@ -14,6 +14,7 @@ resource "aws_security_group" "interface_endpoints" {
 
 resource "aws_vpc_security_group_ingress_rule" "interface_endpoints_https" {
   security_group_id = aws_security_group.interface_endpoints.id
+  description       = "HTTPS from the VPC to AWS interface endpoints."
 
   cidr_ipv4   = data.aws_vpc.this.cidr_block
   from_port   = 443

@@ -1,9 +1,17 @@
 resource "aws_cloudwatch_log_group" "eks" {
+  #checkov:skip=CKV_AWS_158:CloudWatch Logs already encrypts log data at rest; a customer-managed KMS key is not required here.
+  #checkov:skip=CKV_AWS_338:EKS is ephemeral and seven days covers Stage 4 troubleshooting without retaining a year of paid logs.
+
   name              = "/aws/eks/${local.cluster_name}/cluster"
   retention_in_days = 7
 }
 
 resource "aws_eks_cluster" "this" {
+
+  #checkov:skip=CKV_AWS_39:GitHub-hosted runners and the MFA operator need API reachability; private endpoint access remains enabled.
+  #checkov:skip=CKV_AWS_38:GitHub-hosted runner addresses are not stable enough for a fixed CIDR allowlist; API access still requires an authorized IAM principal.
+  #checkov:skip=CKV_AWS_58:EKS 1.35 provides default KMS envelope encryption for Kubernetes API data.
+
   name     = local.cluster_name
   role_arn = aws_iam_role.eks_cluster.arn
   version  = var.kubernetes_version
