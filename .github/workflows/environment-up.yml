@@ -1,0 +1,123 @@
+name: Environment up
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to create
+        required: true
+        default: dev
+        type: choice
+        options:
+          - dev
+          - prod
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  TF_IN_AUTOMATION: "true"
+  TF_VERSION: "1.15.8"
+
+jobs:
+  up:
+    name: Create ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    concurrency:
+      group: terraform-cluster-${{ inputs.environment }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Resolve apply role
+        id: role
+        shell: bash
+        env:
+          DEV_ROLE: ${{ vars.AWS_INFRA_DEV_APPLY_ROLE_ARN }}
+          PROD_ROLE: ${{ vars.AWS_INFRA_PROD_APPLY_ROLE_ARN }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ inputs.environment }}" == "prod" ]]; then
+            role_arn="${PROD_ROLE}"
+          else
+            role_arn="${DEV_ROLE}"
+          fi
+
+          [[ -n "${role_arn}" ]]
+          echo "arn=${role_arn}" >> "${GITHUB_OUTPUT}"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c
+        with:
+          role-to-assume: ${{ steps.role.outputs.arn }}
+          role-session-name: environment-up-${{ inputs.environment }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true
+
+      - name: Create cluster layer
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          environment="${{ inputs.environment }}"
+          root="terraform/cluster/${environment}"
+          account_id="$(aws sts get-caller-identity --query Account --output text)"
+          bucket="as-bank-terraform-state-${account_id}"
+          network_key="network/${environment}/terraform.tfstate"
+
+          aws s3api head-object \
+            --bucket "${bucket}" \
+            --key "${network_key}" >/dev/null
+
+          terraform -chdir="${root}" init \
+            -input=false \
+            -backend-config="bucket=${bucket}"
+
+          cluster_name="as-bank-${environment}"
+
+          if ! aws eks describe-cluster \
+            --name "${cluster_name}" \
+            --region "${AWS_REGION}" >/dev/null 2>&1; then
+
+            # Helm cannot connect until the EKS API exists on the first build.
+            terraform -chdir="${root}" plan \
+              -input=false \
+              -var="install_karpenter=false" \
+              -out=cluster.tfplan
+
+            terraform -chdir="${root}" apply \
+              -input=false \
+              -auto-approve \
+              cluster.tfplan
+          fi
+
+          terraform -chdir="${root}" plan \
+            -input=false \
+            -var="install_karpenter=true" \
+            -out=karpenter.tfplan
+
+          terraform -chdir="${root}" apply \
+            -input=false \
+            -auto-approve \
+            karpenter.tfplan
+
+      - name: Verify EKS
+        shell: bash
+        run: |
+          aws eks describe-cluster \
+            --name "as-bank-${{ inputs.environment }}" \
+            --query 'cluster.{Name:name,Status:status,Version:version}' \
+            --output table

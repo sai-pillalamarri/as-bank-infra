@@ -14,4 +14,9 @@ locals {
   # Terraform plans run from pull requests; apply credentials remain limited to main.
   github_infra_plan_subject  = "repo:${var.github_owner}@${var.github_owner_id}/as-bank-infra@${var.as_bank_infra_repository_id}:pull_request"
   github_infra_apply_subject = "repo:${var.github_owner}@${var.github_owner_id}/as-bank-infra@${var.as_bank_infra_repository_id}:ref:refs/heads/main"
+
+  infrastructure_environments = toset([
+    "dev",
+    "prod",
+  ])
 }

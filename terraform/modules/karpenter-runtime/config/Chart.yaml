@@ -1,0 +1,5 @@
+apiVersion: v2
+name: as-bank-karpenter-config
+description: AS Bank Karpenter node provisioning configuration.
+type: application
+version: 0.1.0
