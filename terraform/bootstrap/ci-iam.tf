@@ -197,6 +197,7 @@ resource "aws_iam_role_policy" "infrastructure_environment_network_write" {
           "ec2:DeleteVpc",
           "ec2:DeleteVpcEndpoints",
           "ec2:DetachInternetGateway",
+          "ec2:DisassociateAddress",
           "ec2:DisassociateRouteTable",
           "ec2:ModifySubnetAttribute",
           "ec2:ModifyVpcAttribute",
