@@ -840,7 +840,7 @@ Decisions: single-AZ NAT in dev (ADR 0007)
 
 ## 19. Current Status
 
-**Stage:** 2 — AWS foundation in progress; Budget test alert delivery pending
+**Stage:** 5 — GitOps not started
 
 **Completed**
 
@@ -864,6 +864,40 @@ Decisions: single-AZ NAT in dev (ADR 0007)
 38. Old static AWS CLI credentials removed; the project operator has zero IAM access keys
 39. Bootstrap state migrated from local state to the S3 backend with `terraform init -migrate-state`
 40. Remote state verified with a zero-drift Terraform plan
+41. Stage 3 application CI gate completed with path-aware backend and frontend jobs
+42. Customer-service negative JWT security integration tests added and enforced by CI
+43. Separate SonarQube Cloud projects and quality gates configured for customer-service and frontend
+44. Trivy filesystem scanning, Gitleaks, and ZAP baseline scanning enforced by the PR gate
+45. Dependabot vulnerability alerts, automated security fixes, and weekly dependency updates enabled
+46. Strict branch protection requires the PR gate against the latest main
+47. Pinned multi-stage customer-service and frontend container images implemented
+48. Main-only release workflow verified through GitHub OIDC and the application-release IAM role
+49. Trivy image scanning and Syft SPDX SBOM generation verified
+50. Customer-service and frontend images pushed to ECR by immutable Git SHA and digest
+51. Cosign keyless image signing and signed SPDX SBOM attestations verified
+52. `cosign verify` succeeded for both released images
+53. Injected-CVE PR proof completed: Trivy and the required PR gate rejected Log4j 2.14.1
+54. Negative-security-test proof completed: removing `token_use` validation failed `SecurityIntegrationTest` and the required PR gate
+55. Stage 3 — CI and supply chain exit criteria completed
+56. Terraform Layer 1 implemented with separate persistent dev and prod network roots and state
+57. Terraform Layer 2 implemented with separate ephemeral dev and prod cluster roots and state
+58. Dev and prod VPCs, public/private subnets, route tables, Internet Gateways, and S3/DynamoDB gateway endpoints implemented
+59. Dev uses one NAT Gateway while prod uses one NAT Gateway per AZ
+60. EKS, bootstrap managed node groups, NAT gateways, paid interface endpoints, Pod Identity, and Karpenter implemented in Layer 2
+61. EKS access configured for the operator, infrastructure-plan, and infrastructure-apply roles
+62. Karpenter 1.14.1 installed through Terraform-managed Helm
+63. Dev Karpenter capacity configured for Spot and prod for On-Demand
+64. AWS Free account plan compatible node types configured: `c7i-flex.large` for bootstrap and `c7i-flex.large` / `m7i-flex.large` for Karpenter
+65. Terraform PR CI verified with static checks plus separate bootstrap, network-dev, network-prod, cluster-dev, and cluster-prod plans
+66. Persistent Terraform apply verified through GitHub OIDC with bootstrap applied before the network roots
+67. `make up ENV=dev` verified against a healthy EKS cluster and bootstrap node
+68. Karpenter functional proof completed: a constrained pod triggered a new `c7i-flex.large` Spot node, the NodeClaim became Ready, and AWS reported `InstanceLifecycle=spot`
+69. Karpenter destroy ordering fixed so its generated AWS resources are cleaned before the cluster IAM and EKS resources disappear
+70. `make down ENV=dev` verified with the live Karpenter proof workload still present
+71. Final teardown completed without manual IAM cleanup
+72. Post-teardown checks confirmed no dev EKS cluster, NAT gateway, paid interface endpoints, EC2 nodes, or generated Karpenter instance profile remained
+73. Cost Explorer showed no positive Stage 4 service cost immediately after teardown; the result was still marked estimated
+74. Stage 4 — Network and cluster exit criteria completed
 
 **Open decisions**
 
@@ -871,22 +905,11 @@ None.
 
 **Next actions**
 
-1. Wait for AWS Budgets actual spend to exceed $0.01 and verify the test alert email is received
-2. Merge the AWS foundation PR after final review
-3. Mark Stage 2 complete
-4. Begin Stage 3 — CI and supply chain
-
-**Stage 3 (CI and supply chain) then follows:**
-
-1. Create the application PR CI workflow
-2. Gate PRs on lint, unit and integration tests, SonarCloud, Trivy filesystem scan, Gitleaks, negative security tests, and the ZAP baseline scan
-3. Build the application image from `main` using a pinned base image
-4. Scan the image with Trivy
-5. Generate and attach an SBOM with Syft
-6. Sign the image with Cosign using GitHub OIDC
-7. Push the signed image to ECR through the OIDC role and verify it with `cosign verify`
-8. Demonstrate a PR failing because of an intentionally injected CVE
-9. Demonstrate the negative security tests failing the CI gate
+1. Begin Stage 5 — GitOps in `as-bank-gitops`
+2. Add Argo CD with the documented app-of-apps structure
+3. Split GitOps configuration into `platform/` and `apps/`
+4. Prove that merging a GitOps PR produces a running pod without human `kubectl`
+5. When AWS Budgets ActualSpend crosses $0.01, verify the deferred Stage 2 test-alert email
 
 ## 20. Prompts
 
