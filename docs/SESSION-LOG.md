@@ -121,3 +121,23 @@ Decisions: Terraform owns the Argo CD installation and environment root Applicat
 Files changed: as-bank-gitops/.github/workflows/validate.yml, as-bank-gitops/bootstrap/, as-bank-gitops/platform/, as-bank-gitops/apps/, as-bank-infra/.github/workflows/environment-up.yml, as-bank-infra/.github/workflows/environment-down.yml, as-bank-infra/.github/workflows/terraform-plan.yml, as-bank-infra/terraform/cluster/dev/, as-bank-infra/terraform/cluster/prod/, as-bank-infra/terraform/modules/argocd-runtime/, as-bank-infra/docs/AS_BANK_PROJECT.md, as-bank-infra/docs/SESSION-LOG.md
 
 Gotchas: VS Code Prettier rewrites bare Helm expressions that start a YAML value, so those values must be quoted; Git Bash does not include watch by default; running set -e directly in an interactive Git Bash session can close the shell on failure; the Terraform plan workflow initially missed the outer fi around its cluster-only logic; the base as-bank-operator user intentionally cannot call iam:ListMFADevices and EKS access still requires the MFA-backed operator role
+
+## Session 9 — 2026-08-28
+
+Stage: 6 (Hardening)
+
+Done: Completed and verified Stage 6; added External Secrets Operator with EKS Pod Identity and environment-scoped Secrets Manager access; proved a synthetic Secrets Manager value synchronized unchanged into a Kubernetes Secret; added Kyverno enforce-mode workload and image policies; integrated Kyverno with private ECR through Pod Identity; proved a signed AS Bank image was accepted and the same image copied without its Cosign signature was rejected; enabled Pod Security Admission at restricted:v1.35 and proved a root container was rejected; verified default ServiceAccount API access is denied; enabled VPC CNI NetworkPolicy enforcement; proved DNS egress remains allowed while arbitrary HTTPS egress and cross-namespace ingress are blocked; verified Argo CD remained Synced and Healthy; removed all temporary proof resources; completed make down ENV=dev and confirmed no dev EKS cluster, NAT Gateway, paid interface endpoints, EC2 instances, or dev cluster IAM roles remained
+
+In progress: Stage 6 documentation closeout only; Section 19 and this session log are being prepared for the final documentation PR
+
+Blocked on: None; the Stage 2 AWS Budget test-alert email remains deferred until ActualSpend crosses $0.01
+
+Next: Verify the Stage 6 documentation diff, commit and merge docs/stage6-closeout, then begin Stage 7 — Full application with account-service and transaction-service
+
+Branch: docs/stage6-closeout
+
+Decisions: Stage 6 command-output proofs are sufficient evidence for the unsigned-image and root-container rejection controls; no new ADR written
+
+Files changed: as-bank-infra/.github/workflows/environment-up.yml, as-bank-infra/.github/workflows/environment-down.yml, as-bank-infra/.github/workflows/terraform-plan.yml, as-bank-infra/terraform/cluster/dev/, as-bank-infra/terraform/cluster/prod/, as-bank-infra/terraform/modules/cluster/, as-bank-infra/terraform/modules/external-secrets-runtime/, as-bank-infra/terraform/modules/kyverno-runtime/, as-bank-gitops/apps/dev/, as-bank-gitops/platform/dev/, as-bank-gitops/platform/prod/, as-bank-infra/docs/AS_BANK_PROJECT.md, as-bank-infra/docs/SESSION-LOG.md
+
+Gotchas: EKS kubeconfig must be refreshed after cluster recreation because the API endpoint changes; temporary STS operator-role credentials can expire during a long verification session; ECR contains Cosign/SBOM OCI artifacts alongside runnable images, so selecting the newest digest without filtering artifact type can return a signature artifact; customer-service uses named USER asbank with UID 10001, so kubelet required an explicit numeric runAsUser for the temporary runAsNonRoot proof workload; persistent S3 and DynamoDB gateway endpoints correctly remain after teardown and must not be mistaken for paid Layer 2 interface endpoints

@@ -840,7 +840,7 @@ Decisions: single-AZ NAT in dev (ADR 0007)
 
 ## 19. Current Status
 
-**Stage:** 6 — Hardening not started
+**Stage:** 7 — Full application not started
 
 **Completed**
 
@@ -910,6 +910,26 @@ Decisions: single-AZ NAT in dev (ADR 0007)
 84. `make down ENV=dev` destroyed the Stage 5 environment successfully in 6m31s
 85. Post-teardown checks confirmed no dev EKS cluster, NAT Gateway, paid interface endpoints, or running EC2 instances remained
 86. Stage 5 — GitOps exit criteria completed
+87. External Secrets Operator added as Terraform-managed Layer 2 runtime infrastructure
+88. External Secrets integrated with AWS Secrets Manager through EKS Pod Identity using environment-scoped IAM permissions
+89. External Secrets end-to-end proof completed: a synthetic Secrets Manager value synchronized into a Kubernetes Secret unchanged
+90. Kyverno installed through Terraform with enforce-mode workload and image validation policies managed through GitOps
+91. Kyverno admission controller integrated with private ECR through EKS Pod Identity and scoped ECR read permissions
+92. Signed-image admission proof completed: the Stage 3 signed customer-service digest was accepted
+93. Unsigned-image rejection proof completed: the same image copied without its Cosign signature was rejected by Kyverno
+94. Pod Security Admission configured at `restricted:v1.35` for dev and prod application namespaces
+95. Root-container rejection proof completed: `runAsNonRoot=false` and `runAsUser=0` were rejected by Pod Security Admission
+96. Application namespace ServiceAccounts configured with `automountServiceAccountToken: false`
+97. RBAC proof confirmed the default dev ServiceAccount cannot read Secrets or create Pods
+98. VPC CNI NetworkPolicy enforcement enabled and verified
+99. Default-deny ingress and egress NetworkPolicies added with an explicit DNS egress allowance
+100.  NetworkPolicy egress proof completed: Kubernetes DNS remained reachable while arbitrary HTTPS egress was blocked
+101.  NetworkPolicy ingress proof completed: cross-namespace traffic to an `as-bank-dev` service was blocked
+102.  Argo CD root, platform, and application Applications remained `Synced` and `Healthy` with Stage 6 controls active
+103.  Temporary Stage 6 proof resources and the deliberately unsigned ECR image were removed after verification
+104.  `make down ENV=dev` completed successfully after Stage 6 verification
+105.  Post-teardown checks confirmed no dev EKS cluster, NAT Gateway, paid interface endpoints, dev EC2 instances, or dev cluster IAM roles remained
+106.  Stage 6 — Hardening exit criteria completed
 
 **Open decisions**
 
@@ -917,11 +937,14 @@ None.
 
 **Next actions**
 
-1. Begin Stage 6 — Hardening
-2. Add External Secrets Operator and its EKS Pod Identity integration
-3. Add Kyverno in enforce mode with the required workload and supply-chain policies
-4. Add Pod Security Admission, RBAC, and default-deny NetworkPolicies with explicit allows
-5. Prove the cluster rejects an unsigned image and a root container
+1. Begin Stage 7 — Full application
+2. Implement account-service and transaction-service
+3. Add RDS with database-per-service ownership and Flyway migrations
+4. Replace the local OAuth2 issuer with real Cognito
+5. Provision the demo Cognito users and matching synthetic customer/account data
+6. Deploy all three services and the frontend through GitOps
+7. Add Route 53, ACM, CloudFront, and the production edge path
+8. Prove a real Cognito login and transfer end to end
 
 ## 20. Prompts
 
