@@ -1,0 +1,5 @@
+apiVersion: v2
+name: as-bank-argocd-bootstrap
+description: Creates the root Argo CD application for one AS Bank environment.
+type: application
+version: 0.1.0

@@ -93,6 +93,7 @@ jobs:
             -destroy \
             -input=false \
             -var="install_karpenter=true" \
+            -var="install_argocd=true" \
             -out=destroy.tfplan
 
           terraform -chdir="${root}" apply \

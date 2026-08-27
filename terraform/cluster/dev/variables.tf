@@ -9,3 +9,9 @@ variable "install_karpenter" {
   type        = bool
   default     = true
 }
+
+variable "install_argocd" {
+  description = "Install Argo CD and the root GitOps application."
+  type        = bool
+  default     = true
+}
