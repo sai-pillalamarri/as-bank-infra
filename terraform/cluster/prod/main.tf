@@ -45,3 +45,22 @@ module "karpenter_runtime" {
   capacity_type       = local.karpenter_capacity_type
   controller_replicas = local.karpenter_controller_replicas
 }
+
+module "argocd_runtime" {
+  count = var.install_argocd ? 1 : 0
+
+  source = "../../modules/argocd-runtime"
+
+  # Helm needs a reachable Kubernetes API, so this belongs in the second cluster apply.
+  depends_on = [
+    module.cluster,
+  ]
+
+  providers = {
+    helm = helm
+  }
+
+  environment           = local.environment
+  gitops_repository_url = "https://github.com/sai-pillalamarri/as-bank-gitops.git"
+  gitops_revision       = "main"
+}

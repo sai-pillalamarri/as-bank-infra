@@ -96,6 +96,7 @@ jobs:
             terraform -chdir="${root}" plan \
               -input=false \
               -var="install_karpenter=false" \
+              -var="install_argocd=false" \
               -out=cluster.tfplan
 
             terraform -chdir="${root}" apply \
@@ -107,12 +108,13 @@ jobs:
           terraform -chdir="${root}" plan \
             -input=false \
             -var="install_karpenter=true" \
-            -out=karpenter.tfplan
+            -var="install_argocd=true" \
+            -out=runtime.tfplan
 
           terraform -chdir="${root}" apply \
             -input=false \
             -auto-approve \
-            karpenter.tfplan
+            runtime.tfplan
 
       - name: Verify EKS
         shell: bash

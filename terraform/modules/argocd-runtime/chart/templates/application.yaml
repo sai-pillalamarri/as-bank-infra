@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: as-bank-{{ .Values.environment }}
+  namespace: argocd
+
+  # Teardown must remove child applications before Terraform removes Argo CD.
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: "{{ .Values.repositoryUrl }}"
+    targetRevision: "{{ .Values.revision }}"
+    path: bootstrap/{{ .Values.environment }}
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
