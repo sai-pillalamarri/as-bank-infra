@@ -15,3 +15,15 @@ variable "install_argocd" {
   type        = bool
   default     = true
 }
+
+variable "install_external_secrets" {
+  description = "Install External Secrets Operator."
+  type        = bool
+  default     = true
+}
+
+variable "install_kyverno" {
+  description = "Install Kyverno admission controllers and policy CRDs."
+  type        = bool
+  default     = true
+}

@@ -49,3 +49,44 @@ data "aws_iam_policy_document" "pod_identity_assume_role" {
 data "aws_caller_identity" "current" {}
 
 data "aws_partition" "current" {}
+
+data "aws_iam_policy_document" "external_secrets" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "secretsmanager:DescribeSecret",
+      "secretsmanager:GetSecretValue",
+    ]
+
+    resources = [
+      "arn:${data.aws_partition.current.partition}:secretsmanager:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:secret:as-bank/${var.environment}/*",
+    ]
+  }
+}
+
+data "aws_iam_policy_document" "kyverno_ecr" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "ecr:GetAuthorizationToken",
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:BatchGetImage",
+      "ecr:GetDownloadUrlForLayer",
+    ]
+
+    resources = [
+      "arn:${data.aws_partition.current.partition}:ecr:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:repository/as-bank/*",
+    ]
+  }
+}

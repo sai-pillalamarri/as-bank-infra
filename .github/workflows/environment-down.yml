@@ -93,6 +93,8 @@ jobs:
             -destroy \
             -input=false \
             -var="install_karpenter=true" \
+            -var="install_external_secrets=true" \
+            -var="install_kyverno=true" \
             -var="install_argocd=true" \
             -out=destroy.tfplan
 

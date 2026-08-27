@@ -96,6 +96,8 @@ jobs:
             terraform -chdir="${root}" plan \
               -input=false \
               -var="install_karpenter=false" \
+              -var="install_external_secrets=false" \
+              -var="install_kyverno=false" \
               -var="install_argocd=false" \
               -out=cluster.tfplan
 
@@ -107,6 +109,8 @@ jobs:
 
           terraform -chdir="${root}" plan \
             -input=false \
+            -var="install_karpenter=true" \
+            -var="install_external_secrets=true" \
             -var="install_karpenter=true" \
             -var="install_argocd=true" \
             -out=runtime.tfplan

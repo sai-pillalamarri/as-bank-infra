@@ -53,3 +53,13 @@ output "cluster_certificate_authority_data" {
   description = "Base64-encoded CA certificate used to verify the Kubernetes API."
   value       = aws_eks_cluster.this.certificate_authority[0].data
 }
+
+output "external_secrets_role_arn" {
+  description = "IAM role used by External Secrets through EKS Pod Identity."
+  value       = aws_iam_role.external_secrets.arn
+}
+
+output "kyverno_role_arn" {
+  description = "IAM role used by the Kyverno admission controller through EKS Pod Identity."
+  value       = aws_iam_role.kyverno.arn
+}

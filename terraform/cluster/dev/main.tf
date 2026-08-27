@@ -46,6 +46,36 @@ module "karpenter_runtime" {
   controller_replicas = local.karpenter_controller_replicas
 }
 
+module "external_secrets_runtime" {
+  count = var.install_external_secrets ? 1 : 0
+
+  source = "../../modules/external-secrets-runtime"
+
+  # Helm needs the cluster API before it can install the operator and CRDs.
+  depends_on = [
+    module.cluster,
+  ]
+
+  providers = {
+    helm = helm
+  }
+}
+
+module "kyverno_runtime" {
+  count = var.install_kyverno ? 1 : 0
+
+  source = "../../modules/kyverno-runtime"
+
+  # Kyverno uses the Kubernetes API, so it belongs in the second cluster apply.
+  depends_on = [
+    module.cluster,
+  ]
+
+  providers = {
+    helm = helm
+  }
+}
+
 module "argocd_runtime" {
   count = var.install_argocd ? 1 : 0
 
@@ -54,6 +84,8 @@ module "argocd_runtime" {
   # Helm needs a reachable Kubernetes API, so this belongs in the second cluster apply.
   depends_on = [
     module.cluster,
+    module.external_secrets_runtime,
+    module.kyverno_runtime,
   ]
 
   providers = {
