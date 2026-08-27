@@ -27,6 +27,11 @@ module "karpenter_runtime" {
 
   source = "../../modules/karpenter-runtime"
 
+  # Karpenter must clean its AWS resources before the cluster IAM and EKS resources disappear.
+  depends_on = [
+    module.cluster,
+  ]
+
   providers = {
     helm = helm
   }
