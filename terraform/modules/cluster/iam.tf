@@ -46,3 +46,27 @@ resource "aws_iam_role_policy_attachment" "ebs_csi" {
   role       = aws_iam_role.ebs_csi.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }
+
+resource "aws_iam_role" "external_secrets" {
+  name = "${local.cluster_name}-external-secrets"
+
+  assume_role_policy = data.aws_iam_policy_document.pod_identity_assume_role.json
+}
+
+resource "aws_iam_role_policy" "external_secrets" {
+  name   = "secrets-manager-read"
+  role   = aws_iam_role.external_secrets.name
+  policy = data.aws_iam_policy_document.external_secrets.json
+}
+
+resource "aws_iam_role" "kyverno" {
+  name = "${local.cluster_name}-kyverno"
+
+  assume_role_policy = data.aws_iam_policy_document.pod_identity_assume_role.json
+}
+
+resource "aws_iam_role_policy" "kyverno_ecr" {
+  name   = "ecr-signature-read"
+  role   = aws_iam_role.kyverno.name
+  policy = data.aws_iam_policy_document.kyverno_ecr.json
+}

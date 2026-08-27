@@ -229,10 +229,14 @@ jobs:
               --name "as-bank-${environment}" \
               --region "${AWS_REGION}" >/dev/null 2>&1; then
               plan_args+=('-var=install_karpenter=true')
+              plan_args+=('-var=install_external_secrets=true')
+              plan_args+=('-var=install_kyverno=true')
               plan_args+=('-var=install_argocd=true')
             else
               # Helm cannot read Kubernetes state until the EKS API exists.
               plan_args+=('-var=install_karpenter=false')
+              plan_args+=('-var=install_external_secrets=false')
+              plan_args+=('-var=install_kyverno=false')
               plan_args+=('-var=install_argocd=false')
             fi
           fi
