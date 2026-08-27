@@ -225,15 +225,16 @@ jobs:
             matrix_name="${{ matrix.name }}"
             environment="${matrix_name#cluster-}"
 
-          if aws eks describe-cluster \
-            --name "as-bank-${environment}" \
-            --region "${AWS_REGION}" >/dev/null 2>&1; then
-            plan_args+=('-var=install_karpenter=true')
-            plan_args+=('-var=install_argocd=true')
-          else
-            # Helm cannot read Kubernetes state until the EKS API exists.
-            plan_args+=('-var=install_karpenter=false')
-            plan_args+=('-var=install_argocd=false')
+            if aws eks describe-cluster \
+              --name "as-bank-${environment}" \
+              --region "${AWS_REGION}" >/dev/null 2>&1; then
+              plan_args+=('-var=install_karpenter=true')
+              plan_args+=('-var=install_argocd=true')
+            else
+              # Helm cannot read Kubernetes state until the EKS API exists.
+              plan_args+=('-var=install_karpenter=false')
+              plan_args+=('-var=install_argocd=false')
+            fi
           fi
 
           set +e
