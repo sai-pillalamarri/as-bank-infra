@@ -101,3 +101,23 @@ Branch: docs/stage4-closeout
 Decisions: Stage 4 is complete; dev Karpenter uses Spot and prod uses On-Demand; bootstrap managed node groups use On-Demand; Karpenter runtime depends on the cluster module so Karpenter cleanup completes before its AWS access is removed; ADR 0004 remains the relevant layering/apply-model decision
 Files changed: terraform/cluster/dev/main.tf, terraform/cluster/prod/main.tf, docs/AS_BANK_PROJECT.md, docs/SESSION-LOG.md
 Gotchas: Operator STS sessions expire even while the aws login profile remains usable; Karpenter-generated instance profiles can be orphaned if controller credentials disappear before EC2NodeClass cleanup; the AWS Free account plan rejected t3.medium; Cost Explorer can remain estimated after teardown; Git Bash and native Windows Python handle /tmp differently; whole-file newline conversion caused noisy Markdown diffs, so preserve the canonical Markdown and avoid line-ending rewrite scripts
+
+## Session 8 — 2026-08-27
+
+Stage: 5 (GitOps)
+
+Done: Completed and verified Stage 5; added Argo CD as Terraform-managed Layer 2 runtime infrastructure; implemented the app-of-apps structure with separate bootstrap, platform, and application trees for dev and prod; added and enforced GitOps manifest validation; verified Argo CD root, platform, and application Applications reached Synced and Healthy; verified the initial gitops-proof workload was reconciled from Git; merged a GitOps change and proved Argo advanced to the new Git revision and rolled the pod from version=stage5 to version=stage5-pr-proof without kubectl apply or manual Argo sync; verified make down ENV=dev completed successfully; confirmed no dev EKS cluster, NAT Gateway, paid interface endpoints, or running EC2 instances remained after teardown
+
+In progress: Stage 5 documentation closeout; implementation and AWS teardown are complete, but the final documentation commit and PR have not yet been merged
+
+Blocked on: None; the Stage 2 AWS Budget test-alert email remains deferred until ActualSpend crosses $0.01
+
+Next: Commit and merge docs/stage5-closeout, then begin Stage 6 — Hardening with External Secrets Operator and EKS Pod Identity
+
+Branch: docs/stage5-closeout
+
+Decisions: Terraform owns the Argo CD installation and environment root Application; Argo CD owns the desired Kubernetes state from as-bank-gitops. Dev child Applications auto-sync while prod child Applications remain manual as already specified. No new ADR written
+
+Files changed: as-bank-gitops/.github/workflows/validate.yml, as-bank-gitops/bootstrap/, as-bank-gitops/platform/, as-bank-gitops/apps/, as-bank-infra/.github/workflows/environment-up.yml, as-bank-infra/.github/workflows/environment-down.yml, as-bank-infra/.github/workflows/terraform-plan.yml, as-bank-infra/terraform/cluster/dev/, as-bank-infra/terraform/cluster/prod/, as-bank-infra/terraform/modules/argocd-runtime/, as-bank-infra/docs/AS_BANK_PROJECT.md, as-bank-infra/docs/SESSION-LOG.md
+
+Gotchas: VS Code Prettier rewrites bare Helm expressions that start a YAML value, so those values must be quoted; Git Bash does not include watch by default; running set -e directly in an interactive Git Bash session can close the shell on failure; the Terraform plan workflow initially missed the outer fi around its cluster-only logic; the base as-bank-operator user intentionally cannot call iam:ListMFADevices and EKS access still requires the MFA-backed operator role

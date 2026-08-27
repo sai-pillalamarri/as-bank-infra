@@ -840,7 +840,7 @@ Decisions: single-AZ NAT in dev (ADR 0007)
 
 ## 19. Current Status
 
-**Stage:** 5 — GitOps not started
+**Stage:** 6 — Hardening not started
 
 **Completed**
 
@@ -898,6 +898,18 @@ Decisions: single-AZ NAT in dev (ADR 0007)
 72. Post-teardown checks confirmed no dev EKS cluster, NAT gateway, paid interface endpoints, EC2 nodes, or generated Karpenter instance profile remained
 73. Cost Explorer showed no positive Stage 4 service cost immediately after teardown; the result was still marked estimated
 74. Stage 4 — Network and cluster exit criteria completed
+75. Argo CD bootstrapped through Terraform Layer 2 with an environment-specific root Application
+76. GitOps app-of-apps structure implemented with separate `bootstrap/`, `platform/`, and `apps/` trees for dev and prod
+77. GitOps manifest validation added and enforced as a required check on `as-bank-gitops` main
+78. Terraform environment creation updated so Argo CD and Karpenter install in the second apply after the EKS API becomes reachable
+79. Terraform PR planning and environment teardown updated to include the Argo CD runtime
+80. Terraform PR gate passed static checks plus bootstrap, network-dev, network-prod, cluster-dev, and cluster-prod plans
+81. Dev Argo CD root, platform, and application Applications reached `Synced` and `Healthy`
+82. Initial GitOps proof workload reconciled to a running `version=stage5` pod without `kubectl apply`
+83. A merged GitOps PR advanced `apps-dev` from Git revision `9376955` to `0914fc9` and rolled the workload to `version=stage5-pr-proof` without manual sync
+84. `make down ENV=dev` destroyed the Stage 5 environment successfully in 6m31s
+85. Post-teardown checks confirmed no dev EKS cluster, NAT Gateway, paid interface endpoints, or running EC2 instances remained
+86. Stage 5 — GitOps exit criteria completed
 
 **Open decisions**
 
@@ -905,11 +917,11 @@ None.
 
 **Next actions**
 
-1. Begin Stage 5 — GitOps in `as-bank-gitops`
-2. Add Argo CD with the documented app-of-apps structure
-3. Split GitOps configuration into `platform/` and `apps/`
-4. Prove that merging a GitOps PR produces a running pod without human `kubectl`
-5. When AWS Budgets ActualSpend crosses $0.01, verify the deferred Stage 2 test-alert email
+1. Begin Stage 6 — Hardening
+2. Add External Secrets Operator and its EKS Pod Identity integration
+3. Add Kyverno in enforce mode with the required workload and supply-chain policies
+4. Add Pod Security Admission, RBAC, and default-deny NetworkPolicies with explicit allows
+5. Prove the cluster rejects an unsigned image and a root container
 
 ## 20. Prompts
 
