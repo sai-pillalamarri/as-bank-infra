@@ -313,6 +313,7 @@ resource "aws_iam_role_policy" "infrastructure_environment_data_write" {
           "secretsmanager:TagResource",
           "secretsmanager:UntagResource",
           "secretsmanager:UpdateSecret",
+          "secretsmanager:GetSecretValue",
         ]
         Resource = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:as-bank/${each.key}/database/*"
       },

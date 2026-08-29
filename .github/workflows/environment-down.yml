@@ -25,10 +25,10 @@ jobs:
   down:
     name: Destroy ${{ inputs.environment }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     concurrency:
-      group: terraform-cluster-${{ inputs.environment }}
+      group: terraform-environment-${{ inputs.environment }}
       cancel-in-progress: false
 
     steps:
@@ -74,6 +74,7 @@ jobs:
 
           environment="${{ inputs.environment }}"
           root="terraform/cluster/${environment}"
+
           account_id="$(aws sts get-caller-identity --query Account --output text)"
           bucket="as-bank-terraform-state-${account_id}"
           cluster_key="cluster/${environment}/terraform.tfstate"
@@ -81,7 +82,7 @@ jobs:
           if ! aws s3api head-object \
             --bucket "${bucket}" \
             --key "${cluster_key}" >/dev/null 2>&1; then
-            echo "${environment} cluster state does not exist. Nothing to destroy."
+            echo "${environment} cluster state does not exist. Skipping cluster teardown."
             exit 0
           fi
 
@@ -102,3 +103,171 @@ jobs:
             -input=false \
             -auto-approve \
             destroy.tfplan
+
+      - name: Snapshot and destroy data layer
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          environment="${{ inputs.environment }}"
+          root="terraform/data/${environment}"
+
+          account_id="$(aws sts get-caller-identity --query Account --output text)"
+          bucket="as-bank-terraform-state-${account_id}"
+          data_key="data/${environment}/terraform.tfstate"
+
+          if ! aws s3api head-object \
+            --bucket "${bucket}" \
+            --key "${data_key}" >/dev/null 2>&1; then
+            echo "${environment} data state does not exist. Skipping data teardown."
+            exit 0
+          fi
+
+          running_count=0
+
+          for service in customer account transaction; do
+            identifier="as-bank-${environment}-${service}"
+
+            if aws rds describe-db-instances \
+              --db-instance-identifier "${identifier}" \
+              --region "${AWS_REGION}" >/dev/null 2>&1; then
+              running_count=$((running_count + 1))
+            fi
+          done
+
+          if (( running_count == 0 )); then
+            echo "${environment} RDS instances are already down."
+            exit 0
+          fi
+
+          if (( running_count != 3 )); then
+            echo "Expected either zero or three running ${environment} databases; found ${running_count}."
+            exit 1
+          fi
+
+          terraform -chdir="${root}" init \
+            -input=false \
+            -backend-config="bucket=${bucket}"
+
+          snapshots="$(
+            aws rds describe-db-snapshots \
+              --snapshot-type manual \
+              --region "${AWS_REGION}" \
+              --output json
+          )"
+
+          snapshot_identifiers='{}'
+          snapshot_count=0
+
+          for service in customer account transaction; do
+            prefix="as-bank-${environment}-${service}-final-"
+
+            latest_snapshot="$(
+              jq -r \
+                --arg prefix "${prefix}" \
+                '[
+                  .DBSnapshots[]
+                  | select(.DBSnapshotIdentifier | startswith($prefix))
+                ]
+                | sort_by(.SnapshotCreateTime)
+                | last
+                | .DBSnapshotIdentifier // empty' \
+                <<< "${snapshots}"
+            )"
+
+            if [[ -n "${latest_snapshot}" ]]; then
+              snapshot_identifiers="$(
+                jq -c \
+                  --arg service "${service}" \
+                  --arg snapshot "${latest_snapshot}" \
+                  '. + {($service): $snapshot}' \
+                  <<< "${snapshot_identifiers}"
+              )"
+
+              snapshot_count=$((snapshot_count + 1))
+            fi
+          done
+
+          if (( snapshot_count != 0 && snapshot_count != 3 )); then
+            echo "Expected either zero or three existing service snapshots for ${environment}; found ${snapshot_count}."
+            exit 1
+          fi
+
+          snapshot_suffix="$(date -u +%Y%m%d%H%M%S)"
+
+          echo "Preparing final snapshot identifiers with suffix ${snapshot_suffix}."
+
+          # Update Terraform state with unique delete-time snapshot names before removing the instances.
+          terraform -chdir="${root}" plan \
+            -input=false \
+            -var="databases_enabled=true" \
+            -var="snapshot_identifiers=${snapshot_identifiers}" \
+            -var="final_snapshot_suffix=${snapshot_suffix}" \
+            -out=prepare-down.tfplan
+
+          terraform -chdir="${root}" apply \
+            -input=false \
+            -auto-approve \
+            prepare-down.tfplan
+
+          terraform -chdir="${root}" plan \
+            -input=false \
+            -var="databases_enabled=false" \
+            -var="snapshot_identifiers=${snapshot_identifiers}" \
+            -var="final_snapshot_suffix=${snapshot_suffix}" \
+            -out=data-down.tfplan
+
+          terraform -chdir="${root}" apply \
+            -input=false \
+            -auto-approve \
+            data-down.tfplan
+
+          for service in customer account transaction; do
+            snapshot="as-bank-${environment}-${service}-final-${snapshot_suffix}"
+
+            aws rds wait db-snapshot-available \
+              --db-snapshot-identifier "${snapshot}" \
+              --region "${AWS_REGION}"
+          done
+
+          echo "Final snapshots are available."
+
+          aws rds describe-db-snapshots \
+            --snapshot-type manual \
+            --region "${AWS_REGION}" \
+            --query "DBSnapshots[?starts_with(DBSnapshotIdentifier, 'as-bank-${environment}-')].{Snapshot:DBSnapshotIdentifier,Status:Status,Created:SnapshotCreateTime}" \
+            --output table
+
+      - name: Verify environment teardown
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          environment="${{ inputs.environment }}"
+
+          cluster_status="$(
+            aws eks describe-cluster \
+              --name "as-bank-${environment}" \
+              --region "${AWS_REGION}" \
+              --query 'cluster.status' \
+              --output text 2>/dev/null || true
+          )"
+
+          if [[ -n "${cluster_status}" && "${cluster_status}" != "None" ]]; then
+            echo "EKS cluster still exists with status ${cluster_status}."
+            exit 1
+          fi
+
+          remaining_databases="$(
+            aws rds describe-db-instances \
+              --region "${AWS_REGION}" \
+              --query "length(DBInstances[?starts_with(DBInstanceIdentifier, 'as-bank-${environment}-')])" \
+              --output text
+          )"
+
+          if [[ "${remaining_databases}" != "0" ]]; then
+            echo "${remaining_databases} ${environment} RDS instances remain after teardown."
+            exit 1
+          fi
+
+          echo "${environment} cluster and RDS instances are down."
