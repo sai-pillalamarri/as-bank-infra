@@ -78,6 +78,38 @@ resource "aws_iam_role_policy" "infrastructure_environment_plan_state" {
   })
 }
 
+resource "aws_iam_role_policy" "infrastructure_environment_data_plan" {
+  #checkov:skip=CKV_AWS_355:GetRandomPassword does not support resource-level permissions; database secret reads are scoped to this environment.
+
+  for_each = local.infrastructure_environments
+
+  name = "as-bank-${each.key}-data-plan"
+  role = aws_iam_role.infrastructure_environment_plan[each.key].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "GenerateDatabasePasswords"
+        Effect   = "Allow"
+        Action   = "secretsmanager:GetRandomPassword"
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = var.aws_region
+          }
+        }
+      },
+      {
+        Sid      = "ReadDatabaseCredentials"
+        Effect   = "Allow"
+        Action   = "secretsmanager:GetSecretValue"
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:as-bank/${each.key}/database/*"
+      },
+    ]
+  })
+}
+
 resource "aws_iam_role" "infrastructure_environment_apply" {
   for_each = local.infrastructure_environments
 
