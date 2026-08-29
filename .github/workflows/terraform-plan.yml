@@ -51,6 +51,8 @@ jobs:
             terraform/network/prod
             terraform/cluster/dev
             terraform/cluster/prod
+            terraform/data/dev
+            terraform/data/prod
           )
 
           for root in "${roots[@]}"; do
@@ -75,6 +77,8 @@ jobs:
             terraform/network/prod
             terraform/cluster/dev
             terraform/cluster/prod
+            terraform/data/dev
+            terraform/data/prod
           )
 
           for root in "${roots[@]}"; do
@@ -118,6 +122,16 @@ jobs:
             role: prod
             network_state_key: ""
 
+          - name: data-dev
+            root: terraform/data/dev
+            role: dev
+            network_state_key: network/dev/terraform.tfstate
+
+          - name: data-prod
+            root: terraform/data/prod
+            role: prod
+            network_state_key: network/prod/terraform.tfstate
+
           - name: cluster-dev
             root: terraform/cluster/dev
             role: dev
@@ -153,7 +167,10 @@ jobs:
             shared) role_arn="${SHARED_PLAN_ROLE_ARN}" ;;
             dev) role_arn="${DEV_PLAN_ROLE_ARN}" ;;
             prod) role_arn="${PROD_PLAN_ROLE_ARN}" ;;
-            *) echo "Unknown role selector"; exit 1 ;;
+            *)
+              echo "Unknown role selector."
+              exit 1
+              ;;
           esac
 
           if [[ -z "${role_arn}" ]]; then
@@ -241,6 +258,59 @@ jobs:
             fi
           fi
 
+          if [[ "${{ matrix.name }}" == data-* ]]; then
+            matrix_name="${{ matrix.name }}"
+            environment="${matrix_name#data-}"
+
+            snapshots="$(
+              aws rds describe-db-snapshots \
+                --snapshot-type manual \
+                --region "${AWS_REGION}" \
+                --output json
+            )"
+
+            snapshot_identifiers='{}'
+            snapshot_count=0
+
+            for service in customer account transaction; do
+              prefix="as-bank-${environment}-${service}-final-"
+
+              latest_snapshot="$(
+                jq -r \
+                  --arg prefix "${prefix}" \
+                  '[
+                    .DBSnapshots[]
+                    | select(.DBSnapshotIdentifier | startswith($prefix))
+                  ]
+                  | sort_by(.SnapshotCreateTime)
+                  | last
+                  | .DBSnapshotIdentifier // empty' \
+                  <<< "${snapshots}"
+              )"
+
+              if [[ -n "${latest_snapshot}" ]]; then
+                snapshot_identifiers="$(
+                  jq -c \
+                    --arg service "${service}" \
+                    --arg snapshot "${latest_snapshot}" \
+                    '. + {($service): $snapshot}' \
+                    <<< "${snapshot_identifiers}"
+                )"
+
+                snapshot_count=$((snapshot_count + 1))
+              fi
+            done
+
+            # Restoring only part of the service data could create an inconsistent banking state.
+            if (( snapshot_count != 0 && snapshot_count != 3 )); then
+              echo "Expected either zero or three service snapshots for ${environment}; found ${snapshot_count}."
+              exit 1
+            fi
+
+            plan_args+=('-var=databases_enabled=true')
+            plan_args+=("-var=snapshot_identifiers=${snapshot_identifiers}")
+          fi
+
           set +e
           terraform -chdir="${root}" plan \
             -input=false \
@@ -268,7 +338,7 @@ jobs:
 
           exit "${status}"
 
-      - name: Record deferred initial cluster plan
+      - name: Record deferred environment plan
         if: steps.state.outputs.available == 'false'
         shell: bash
         env:
@@ -277,7 +347,7 @@ jobs:
           gh pr comment "${{ github.event.pull_request.number }}" \
             --body "### Terraform plan — ${{ matrix.name }}
 
-          Layer 1 state does not exist yet. This initial cluster plan is deferred until the network layer has been created. Later pull requests plan this layer normally."
+          Layer 1 network state does not exist yet. This environment plan is deferred until the network layer has been created. Later pull requests plan this layer normally."
 
   gate:
     name: Terraform PR gate

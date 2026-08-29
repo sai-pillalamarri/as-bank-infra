@@ -25,10 +25,10 @@ jobs:
   up:
     name: Create ${{ inputs.environment }}
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     concurrency:
-      group: terraform-cluster-${{ inputs.environment }}
+      group: terraform-environment-${{ inputs.environment }}
       cancel-in-progress: false
 
     steps:
@@ -67,6 +67,108 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
           mask-aws-account-id: true
 
+      - name: Create or restore data layer
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          environment="${{ inputs.environment }}"
+          root="terraform/data/${environment}"
+
+          account_id="$(aws sts get-caller-identity --query Account --output text)"
+          bucket="as-bank-terraform-state-${account_id}"
+          network_key="network/${environment}/terraform.tfstate"
+
+          aws s3api head-object \
+            --bucket "${bucket}" \
+            --key "${network_key}" >/dev/null
+
+          terraform -chdir="${root}" init \
+            -input=false \
+            -backend-config="bucket=${bucket}"
+
+          snapshots="$(
+            aws rds describe-db-snapshots \
+              --snapshot-type manual \
+              --region "${AWS_REGION}" \
+              --output json
+          )"
+
+          snapshot_identifiers='{}'
+          snapshot_count=0
+
+          for service in customer account transaction; do
+            prefix="as-bank-${environment}-${service}-final-"
+
+            latest_snapshot="$(
+              jq -r \
+                --arg prefix "${prefix}" \
+                '[
+                  .DBSnapshots[]
+                  | select(.DBSnapshotIdentifier | startswith($prefix))
+                ]
+                | sort_by(.SnapshotCreateTime)
+                | last
+                | .DBSnapshotIdentifier // empty' \
+                <<< "${snapshots}"
+            )"
+
+            if [[ -n "${latest_snapshot}" ]]; then
+              snapshot_identifiers="$(
+                jq -c \
+                  --arg service "${service}" \
+                  --arg snapshot "${latest_snapshot}" \
+                  '. + {($service): $snapshot}' \
+                  <<< "${snapshot_identifiers}"
+              )"
+
+              snapshot_count=$((snapshot_count + 1))
+            fi
+          done
+
+          # Restore all service databases from one environment lifecycle or start clean.
+          if (( snapshot_count != 0 && snapshot_count != 3 )); then
+            echo "Expected either zero or three service snapshots for ${environment}; found ${snapshot_count}."
+            exit 1
+          fi
+
+          if (( snapshot_count == 3 )); then
+            echo "Restoring ${environment} databases from the latest final snapshots."
+          else
+            echo "No final snapshots found for ${environment}. Creating fresh databases."
+          fi
+
+          terraform -chdir="${root}" plan \
+            -input=false \
+            -var="databases_enabled=true" \
+            -var="snapshot_identifiers=${snapshot_identifiers}" \
+            -out=data.tfplan
+
+          terraform -chdir="${root}" apply \
+            -input=false \
+            -auto-approve \
+            data.tfplan
+
+      - name: Verify data layer
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          environment="${{ inputs.environment }}"
+
+          for service in customer account transaction; do
+            identifier="as-bank-${environment}-${service}"
+
+            aws rds wait db-instance-available \
+              --db-instance-identifier "${identifier}" \
+              --region "${AWS_REGION}"
+          done
+
+          aws rds describe-db-instances \
+            --region "${AWS_REGION}" \
+            --query "DBInstances[?starts_with(DBInstanceIdentifier, 'as-bank-${environment}-')].{Name:DBInstanceIdentifier,Engine:Engine,Class:DBInstanceClass,AZ:AvailabilityZone,MultiAZ:MultiAZ,Status:DBInstanceStatus}" \
+            --output table
+
       - name: Create cluster layer
         shell: bash
         run: |
@@ -74,6 +176,7 @@ jobs:
 
           environment="${{ inputs.environment }}"
           root="terraform/cluster/${environment}"
+
           account_id="$(aws sts get-caller-identity --query Account --output text)"
           bucket="as-bank-terraform-state-${account_id}"
           network_key="network/${environment}/terraform.tfstate"
@@ -92,7 +195,7 @@ jobs:
             --name "${cluster_name}" \
             --region "${AWS_REGION}" >/dev/null 2>&1; then
 
-            # Helm cannot connect until the EKS API exists on the first build.
+            # Helm providers cannot reach Kubernetes until the EKS API exists.
             terraform -chdir="${root}" plan \
               -input=false \
               -var="install_karpenter=false" \
@@ -111,7 +214,7 @@ jobs:
             -input=false \
             -var="install_karpenter=true" \
             -var="install_external_secrets=true" \
-            -var="install_karpenter=true" \
+            -var="install_kyverno=true" \
             -var="install_argocd=true" \
             -out=runtime.tfplan
 
@@ -123,6 +226,8 @@ jobs:
       - name: Verify EKS
         shell: bash
         run: |
+          set -euo pipefail
+
           aws eks describe-cluster \
             --name "as-bank-${{ inputs.environment }}" \
             --query 'cluster.{Name:name,Status:status,Version:version}' \
