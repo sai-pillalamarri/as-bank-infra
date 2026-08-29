@@ -1,6 +1,7 @@
 resource "aws_db_instance" "service" {
-  for_each = var.databases_enabled ? local.services : {}
 
+  for_each = var.databases_enabled ? local.services : {}
+  #checkov:skip=CKV2_AWS_30:PostgreSQL logs are exported to CloudWatch; full statement logging could record banking data and is deferred to the Stage 8 observability design.
   #checkov:skip=CKV_AWS_118:Enhanced Monitoring adds another IAM role and monitoring cost; Stage 8 provides the project's observability stack.
   #checkov:skip=CKV_AWS_157:Both environments stay Single-AZ while this project operates under its AWS Free Tier and credit budget.
   #checkov:skip=CKV_AWS_161:Applications use credentials from Secrets Manager; IAM database authentication is not part of the canonical application design.

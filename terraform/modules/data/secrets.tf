@@ -9,6 +9,7 @@ resource "aws_secretsmanager_secret" "database" {
   for_each = local.services
 
   #checkov:skip=CKV_AWS_149:The AWS-managed Secrets Manager key provides encryption without adding a persistent customer-managed KMS key to this learning environment.
+  #checkov:skip=CKV2_AWS_57:Automatic database credential rotation needs coordinated RDS password rotation; Stage 7 keeps stable credentials across snapshot teardown and restore.
   name        = "as-bank/${var.environment}/database/${each.value.service_name}"
   description = "${each.value.service_name} database connection credentials."
 

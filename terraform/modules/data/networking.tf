@@ -12,6 +12,7 @@ resource "aws_db_subnet_group" "this" {
 resource "aws_security_group" "database" {
   count = var.databases_enabled ? 1 : 0
 
+  #checkov:skip=CKV2_AWS_5:The security group is attached to every RDS instance through vpc_security_group_ids; Checkov cannot resolve the conditional module relationship.
   name        = "as-bank-${var.environment}-database"
   description = "PostgreSQL access for AS Bank service databases."
   vpc_id      = var.vpc_id
