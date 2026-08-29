@@ -57,6 +57,7 @@ resource "aws_iam_role_policy" "infrastructure_environment_plan_state" {
           "${aws_s3_bucket.terraform_state.arn}/bootstrap/terraform.tfstate",
           "${aws_s3_bucket.terraform_state.arn}/network/${each.key}/terraform.tfstate",
           "${aws_s3_bucket.terraform_state.arn}/cluster/${each.key}/terraform.tfstate",
+          "${aws_s3_bucket.terraform_state.arn}/data/${each.key}/terraform.tfstate",
         ]
       },
       {
@@ -70,6 +71,7 @@ resource "aws_iam_role_policy" "infrastructure_environment_plan_state" {
         Resource = [
           "${aws_s3_bucket.terraform_state.arn}/network/${each.key}/terraform.tfstate.tflock",
           "${aws_s3_bucket.terraform_state.arn}/cluster/${each.key}/terraform.tfstate.tflock",
+          "${aws_s3_bucket.terraform_state.arn}/data/${each.key}/terraform.tfstate.tflock",
         ]
       },
     ]
@@ -143,6 +145,7 @@ resource "aws_iam_role_policy" "infrastructure_environment_apply_state" {
         Resource = [
           "${aws_s3_bucket.terraform_state.arn}/network/${each.key}/terraform.tfstate",
           "${aws_s3_bucket.terraform_state.arn}/cluster/${each.key}/terraform.tfstate",
+          "${aws_s3_bucket.terraform_state.arn}/data/${each.key}/terraform.tfstate",
         ]
       },
       {
@@ -156,6 +159,7 @@ resource "aws_iam_role_policy" "infrastructure_environment_apply_state" {
         Resource = [
           "${aws_s3_bucket.terraform_state.arn}/network/${each.key}/terraform.tfstate.tflock",
           "${aws_s3_bucket.terraform_state.arn}/cluster/${each.key}/terraform.tfstate.tflock",
+          "${aws_s3_bucket.terraform_state.arn}/data/${each.key}/terraform.tfstate.tflock",
         ]
       },
     ]
@@ -215,6 +219,70 @@ resource "aws_iam_role_policy" "infrastructure_environment_network_write" {
             "aws:RequestedRegion" = var.aws_region
           }
         }
+      },
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "infrastructure_environment_data_write" {
+  #checkov:skip=CKV_AWS_355:RDS lifecycle calls and password generation need wildcard resources; the role is environment-specific and region-bounded.
+  #checkov:skip=CKV_AWS_290:Resource scoping is used for Secrets Manager where AWS supports it; the remaining data actions are constrained by the environment role and region.
+
+  for_each = local.infrastructure_environments
+
+  name = "as-bank-${each.key}-data-write"
+  role = aws_iam_role.infrastructure_environment_apply[each.key].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ManageRds"
+        Effect = "Allow"
+        Action = [
+          "rds:AddTagsToResource",
+          "rds:CreateDBInstance",
+          "rds:CreateDBSnapshot",
+          "rds:CreateDBSubnetGroup",
+          "rds:DeleteDBInstance",
+          "rds:DeleteDBSnapshot",
+          "rds:DeleteDBSubnetGroup",
+          "rds:ModifyDBInstance",
+          "rds:ModifyDBSubnetGroup",
+          "rds:RemoveTagsFromResource",
+          "rds:RestoreDBInstanceFromDBSnapshot",
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = var.aws_region
+          }
+        }
+      },
+      {
+        Sid      = "GenerateDatabasePasswords"
+        Effect   = "Allow"
+        Action   = "secretsmanager:GetRandomPassword"
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = var.aws_region
+          }
+        }
+      },
+      {
+        Sid    = "ManageDatabaseSecrets"
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:CreateSecret",
+          "secretsmanager:DeleteSecret",
+          "secretsmanager:PutSecretValue",
+          "secretsmanager:RestoreSecret",
+          "secretsmanager:TagResource",
+          "secretsmanager:UntagResource",
+          "secretsmanager:UpdateSecret",
+        ]
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:as-bank/${each.key}/database/*"
       },
     ]
   })
@@ -371,6 +439,7 @@ resource "aws_iam_role_policy" "infrastructure_environment_iam_write" {
               "autoscaling.amazonaws.com",
               "eks.amazonaws.com",
               "eks-nodegroup.amazonaws.com",
+              "rds.amazonaws.com",
             ]
           }
         }
