@@ -149,55 +149,19 @@ jobs:
             -input=false \
             -backend-config="bucket=${bucket}"
 
-          snapshots="$(
-            aws rds describe-db-snapshots \
-              --snapshot-type manual \
-              --region "${AWS_REGION}" \
-              --output json
+          snapshot_set="$(
+            bash scripts/rds-snapshots.sh resolve "${environment}"
           )"
 
-          snapshot_identifiers='{}'
-          snapshot_count=0
-
-          for service in customer account transaction; do
-            prefix="as-bank-${environment}-${service}-final-"
-
-            latest_snapshot="$(
-              jq -r \
-                --arg prefix "${prefix}" \
-                '[
-                  .DBSnapshots[]
-                  | select(.DBSnapshotIdentifier | startswith($prefix))
-                ]
-                | sort_by(.SnapshotCreateTime)
-                | last
-                | .DBSnapshotIdentifier // empty' \
-                <<< "${snapshots}"
-            )"
-
-            if [[ -n "${latest_snapshot}" ]]; then
-              snapshot_identifiers="$(
-                jq -c \
-                  --arg service "${service}" \
-                  --arg snapshot "${latest_snapshot}" \
-                  '. + {($service): $snapshot}' \
-                  <<< "${snapshot_identifiers}"
-              )"
-
-              snapshot_count=$((snapshot_count + 1))
-            fi
-          done
-
-          if (( snapshot_count != 0 && snapshot_count != 3 )); then
-            echo "Expected either zero or three existing service snapshots for ${environment}; found ${snapshot_count}."
-            exit 1
-          fi
+          snapshot_identifiers="$(
+            jq -c '.snapshot_identifiers' <<< "${snapshot_set}"
+          )"
 
           snapshot_suffix="$(date -u +%Y%m%d%H%M%S)"
 
           echo "Preparing final snapshot identifiers with suffix ${snapshot_suffix}."
 
-          # Update Terraform state with unique delete-time snapshot names before removing the instances.
+          # Store the next final snapshot names before removing the RDS instances.
           terraform -chdir="${root}" plan \
             -input=false \
             -var="databases_enabled=true" \
@@ -230,7 +194,12 @@ jobs:
               --region "${AWS_REGION}"
           done
 
-          echo "Final snapshots are available."
+          echo "Final snapshot generation ${snapshot_suffix} is available."
+
+          # Only prune after the replacement generation is complete.
+          bash scripts/rds-snapshots.sh prune \
+            "${environment}" \
+            "${snapshot_suffix}"
 
           aws rds describe-db-snapshots \
             --snapshot-type manual \
