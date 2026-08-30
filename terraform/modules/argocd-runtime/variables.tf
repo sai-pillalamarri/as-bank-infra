@@ -18,3 +18,16 @@ variable "gitops_revision" {
   type        = string
   default     = "main"
 }
+
+variable "ecr_registry" {
+  description = "Private ECR registry injected into Argo CD manifest generation."
+  type        = string
+
+  validation {
+    condition = can(regex(
+      "^[0-9]{12}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com$",
+      var.ecr_registry
+    ))
+    error_message = "ecr_registry must be an AWS private ECR registry hostname."
+  }
+}

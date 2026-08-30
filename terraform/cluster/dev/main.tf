@@ -95,4 +95,8 @@ module "argocd_runtime" {
   environment           = local.environment
   gitops_repository_url = "https://github.com/sai-pillalamarri/as-bank-gitops.git"
   gitops_revision       = "main"
+  ecr_registry = split(
+    "/",
+    data.terraform_remote_state.bootstrap.outputs.ecr_repository_urls["frontend"]
+  )[0]
 }
