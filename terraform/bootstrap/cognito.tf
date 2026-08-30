@@ -42,13 +42,28 @@ resource "aws_cognito_resource_server" "api" {
   user_pool_id = aws_cognito_user_pool.as_bank.id
 
   scope {
-    scope_name        = "read"
-    scope_description = "Read AS Bank resources"
+    scope_name        = "customer.read"
+    scope_description = "Read customer resources"
   }
 
   scope {
-    scope_name        = "write"
-    scope_description = "Change AS Bank resources"
+    scope_name        = "account.read"
+    scope_description = "Read account resources"
+  }
+
+  scope {
+    scope_name        = "account.write"
+    scope_description = "Change account balances"
+  }
+
+  scope {
+    scope_name        = "transaction.read"
+    scope_description = "Read transaction history"
+  }
+
+  scope {
+    scope_name        = "transaction.write"
+    scope_description = "Create banking transactions"
   }
 }
 
@@ -66,8 +81,11 @@ resource "aws_cognito_user_pool_client" "frontend" {
     "openid",
     "email",
     "profile",
-    "${aws_cognito_resource_server.api.identifier}/read",
-    "${aws_cognito_resource_server.api.identifier}/write",
+    "${aws_cognito_resource_server.api.identifier}/customer.read",
+    "${aws_cognito_resource_server.api.identifier}/account.read",
+    "${aws_cognito_resource_server.api.identifier}/account.write",
+    "${aws_cognito_resource_server.api.identifier}/transaction.read",
+    "${aws_cognito_resource_server.api.identifier}/transaction.write",
   ]
 
   callback_urls        = each.value.callback_urls
