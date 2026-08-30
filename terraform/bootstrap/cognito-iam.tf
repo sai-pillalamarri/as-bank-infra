@@ -2,6 +2,9 @@ resource "aws_iam_role_policy" "infrastructure_apply_cognito_write" {
   #checkov:skip=CKV_AWS_355:Cognito create operations do not support resource-level permissions; the action list is limited and region-bounded.
   #checkov:skip=CKV_AWS_290:The bootstrap role needs Cognito write calls to provision persistent authentication resources through CI.
 
+  # The CI role needs this policy before it can make its first Cognito write.
+  depends_on = [aws_iam_role_policy.infrastructure_apply_cognito_write]
+
   name = "as-bank-cognito-write"
   role = aws_iam_role.infrastructure_apply.id
 
