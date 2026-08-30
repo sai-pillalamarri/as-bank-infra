@@ -76,6 +76,37 @@ jobs:
             -auto-approve \
             tfplan
 
+      - name: Set permanent demo user passwords
+        shell: bash
+        env:
+          DEMO_PASSWORD: ${{ secrets.COGNITO_DEMO_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${DEMO_PASSWORD}" ]]; then
+            echo "COGNITO_DEMO_PASSWORD is not configured."
+            exit 1
+          fi
+
+          user_pool_id="$(
+            terraform -chdir=terraform/bootstrap \
+              output -raw cognito_user_pool_id
+          )"
+
+          terraform -chdir=terraform/bootstrap \
+            output -json cognito_demo_users |
+            jq -r 'keys[]' |
+            while IFS= read -r username; do
+              aws cognito-idp admin-set-user-password \
+                --user-pool-id "${user_pool_id}" \
+                --username "${username}" \
+                --password "${DEMO_PASSWORD}" \
+                --permanent \
+                --region "${AWS_REGION}"
+
+              echo "Confirmed demo user ${username}."
+            done
+
   network:
     name: Apply network-${{ matrix.environment }}
     needs: bootstrap
