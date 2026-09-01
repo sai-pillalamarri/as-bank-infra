@@ -629,6 +629,31 @@ resource "aws_iam_role_policy" "infrastructure_apply_bootstrap_write" {
           }
         }
       },
+      {
+        Sid    = "ManageAcmCertificates"
+        Effect = "Allow"
+        Action = [
+          "acm:AddTagsToCertificate",
+          "acm:DeleteCertificate",
+          "acm:RemoveTagsFromCertificate",
+          "acm:RequestCertificate",
+          "acm:UpdateCertificateOptions",
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = var.aws_region
+          }
+        }
+      },
+      {
+        Sid    = "ManageCertificateValidationRecords"
+        Effect = "Allow"
+        Action = [
+          "route53:ChangeResourceRecordSets",
+        ]
+        Resource = aws_route53_zone.primary.arn
+      },
     ]
   })
 }
