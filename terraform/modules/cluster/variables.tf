@@ -67,3 +67,8 @@ variable "plan_role_arn" {
   description = "Environment plan role that reads Kubernetes state during Terraform plans."
   type        = string
 }
+
+variable "route53_zone_id" {
+  description = "Route 53 hosted zone ExternalDNS is allowed to manage."
+  type        = string
+}

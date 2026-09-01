@@ -90,3 +90,29 @@ data "aws_iam_policy_document" "kyverno_ecr" {
     ]
   }
 }
+
+data "aws_iam_policy_document" "external_dns" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "route53:ChangeResourceRecordSets",
+      "route53:ListResourceRecordSets",
+      "route53:ListTagsForResources",
+    ]
+
+    resources = [
+      "arn:${data.aws_partition.current.partition}:route53:::hostedzone/${var.route53_zone_id}",
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "route53:ListHostedZones",
+    ]
+
+    resources = ["*"]
+  }
+}

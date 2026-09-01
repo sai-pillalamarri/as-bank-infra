@@ -27,3 +27,15 @@ variable "install_kyverno" {
   type        = bool
   default     = true
 }
+
+variable "install_aws_load_balancer_controller" {
+  description = "Install the AWS Load Balancer Controller."
+  type        = bool
+  default     = true
+}
+
+variable "install_external_dns" {
+  description = "Install ExternalDNS for Route 53 synchronization."
+  type        = bool
+  default     = true
+}
