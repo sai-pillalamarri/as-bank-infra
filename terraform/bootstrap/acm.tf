@@ -12,6 +12,10 @@ resource "aws_acm_certificate" "alb" {
   lifecycle {
     create_before_destroy = true
   }
+
+  depends_on = [
+    aws_iam_role_policy.infrastructure_apply_bootstrap_write,
+  ]
 }
 
 resource "aws_route53_record" "alb_certificate_validation" {
@@ -42,7 +46,5 @@ resource "aws_acm_certificate_validation" "alb" {
     record.fqdn
   ]
 
-  depends_on = [
-    aws_iam_role_policy.infrastructure_apply_bootstrap_write,
-  ]
+
 }
