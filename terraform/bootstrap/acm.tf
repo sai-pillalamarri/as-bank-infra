@@ -1,5 +1,6 @@
-#checkov:skip=CKV2_AWS_71:The wildcard is intentional so one certificate covers the project's single-label subdomains.
 resource "aws_acm_certificate" "alb" {
+  # checkov:skip=CKV2_AWS_71:The wildcard is intentional so one certificate covers the project's single-label subdomains.
+
   domain_name = "aslearnings.online"
 
   subject_alternative_names = [
