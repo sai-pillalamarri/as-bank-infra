@@ -8,7 +8,8 @@ module "cluster" {
   automation_role_arn = data.terraform_remote_state.bootstrap.outputs.infrastructure_environment_apply_role_arns[local.environment]
   plan_role_arn       = data.terraform_remote_state.bootstrap.outputs.infrastructure_environment_plan_role_arns[local.environment]
 
-  vpc_id = data.terraform_remote_state.network.outputs.vpc_id
+  route53_zone_id = data.terraform_remote_state.bootstrap.outputs.route53_zone_id
+  vpc_id          = data.terraform_remote_state.network.outputs.vpc_id
 
   public_subnet_ids_by_az = data.terraform_remote_state.network.outputs.public_subnet_ids_by_az
 
@@ -20,6 +21,7 @@ module "cluster" {
   bootstrap_min_size       = local.bootstrap_min_size
   bootstrap_desired_size   = local.bootstrap_desired_size
   bootstrap_max_size       = local.bootstrap_max_size
+
 }
 
 module "karpenter_runtime" {
@@ -76,6 +78,44 @@ module "kyverno_runtime" {
   }
 }
 
+module "aws_load_balancer_controller_runtime" {
+  count = var.install_aws_load_balancer_controller ? 1 : 0
+
+  source = "../../modules/aws-load-balancer-controller-runtime"
+
+  # The Pod Identity association is created by the cluster module first.
+  depends_on = [
+    module.cluster,
+  ]
+
+  providers = {
+    helm = helm
+  }
+
+  cluster_name = module.cluster.cluster_name
+  aws_region   = var.aws_region
+  vpc_id       = data.terraform_remote_state.network.outputs.vpc_id
+}
+
+module "external_dns_runtime" {
+  count = var.install_external_dns ? 1 : 0
+
+  source = "../../modules/external-dns-runtime"
+
+  # ExternalDNS needs its Pod Identity association before the controller starts.
+  depends_on = [
+    module.cluster,
+  ]
+
+  providers = {
+    helm = helm
+  }
+
+  environment     = local.environment
+  domain_name     = "aslearnings.online"
+  route53_zone_id = data.terraform_remote_state.bootstrap.outputs.route53_zone_id
+}
+
 module "argocd_runtime" {
   count = var.install_argocd ? 1 : 0
 
@@ -86,6 +126,8 @@ module "argocd_runtime" {
     module.cluster,
     module.external_secrets_runtime,
     module.kyverno_runtime,
+    module.aws_load_balancer_controller_runtime,
+    module.external_dns_runtime,
   ]
 
   providers = {

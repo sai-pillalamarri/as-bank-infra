@@ -61,3 +61,8 @@ output "infrastructure_environment_apply_role_arns" {
     environment => role.arn
   }
 }
+
+output "alb_certificate_arn" {
+  description = "ACM certificate used by the regional application load balancer."
+  value       = aws_acm_certificate_validation.alb.certificate_arn
+}
