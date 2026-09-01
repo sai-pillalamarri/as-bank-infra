@@ -41,4 +41,8 @@ resource "aws_acm_certificate_validation" "alb" {
     for record in aws_route53_record.alb_certificate_validation :
     record.fqdn
   ]
+
+  depends_on = [
+    aws_iam_role_policy.infrastructure_apply_bootstrap_write,
+  ]
 }
