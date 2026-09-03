@@ -11,6 +11,12 @@ data "aws_cloudfront_response_headers_policy" "security_headers" {
 }
 
 resource "aws_cloudfront_distribution" "dev" {
+  # checkov:skip=CKV_AWS_374:No geographic restriction is required for the dev edge.
+  # checkov:skip=CKV_AWS_310:Multi-region origin failover is explicitly outside this project's scope.
+  # checkov:skip=CKV_AWS_86:CloudFront access-log storage is outside the Stage 7 edge scope.
+  # checkov:skip=CKV_AWS_68:Stage 7 does not add a WAF WebACL; origin access is protected at the ALB.
+  # checkov:skip=CKV2_AWS_47:This policy depends on a WAF WebACL, which is not part of the Stage 7 design.
+
   origin {
     domain_name = "origin-dev.aslearnings.online"
     origin_id   = "as-bank-dev-alb"
@@ -26,9 +32,10 @@ resource "aws_cloudfront_distribution" "dev" {
     }
   }
 
-  enabled         = true
-  is_ipv6_enabled = true
-  comment         = "AS Bank dev edge"
+  enabled             = true
+  is_ipv6_enabled     = true
+  default_root_object = "index.html"
+  comment             = "AS Bank dev edge"
 
   aliases = [
     "dev.aslearnings.online",
