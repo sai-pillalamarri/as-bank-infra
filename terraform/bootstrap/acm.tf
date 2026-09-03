@@ -42,3 +42,33 @@ resource "aws_acm_certificate_validation" "alb" {
     aws_route53_record.alb_certificate_validation.fqdn,
   ]
 }
+
+resource "aws_acm_certificate" "cloudfront" {
+  # checkov:skip=CKV2_AWS_71:The wildcard is intentional so CloudFront can serve every single-label AS Bank hostname.
+
+  domain_name = "aslearnings.online"
+
+  subject_alternative_names = [
+    "*.aslearnings.online",
+  ]
+
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  depends_on = [
+    aws_iam_role_policy.infrastructure_apply_bootstrap_write,
+  ]
+}
+
+resource "aws_acm_certificate_validation" "cloudfront" {
+  certificate_arn = aws_acm_certificate.cloudfront.arn
+
+  # ACM reuses the existing domain-validation CNAME for certificates
+  # covering the same names in this account.
+  validation_record_fqdns = [
+    aws_route53_record.alb_certificate_validation.fqdn,
+  ]
+}
