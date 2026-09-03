@@ -630,6 +630,18 @@ resource "aws_iam_role_policy" "infrastructure_apply_bootstrap_write" {
         }
       },
       {
+        Sid    = "ManageCloudFrontDistribution"
+        Effect = "Allow"
+        Action = [
+          "cloudfront:CreateDistribution",
+          "cloudfront:DeleteDistribution",
+          "cloudfront:TagResource",
+          "cloudfront:UntagResource",
+          "cloudfront:UpdateDistribution",
+        ]
+        Resource = "*"
+      },
+      {
         Sid    = "ManageAcmCertificates"
         Effect = "Allow"
         Action = [

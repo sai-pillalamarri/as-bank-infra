@@ -71,3 +71,13 @@ output "cloudfront_certificate_arn" {
   description = "ACM certificate used by CloudFront."
   value       = aws_acm_certificate_validation.cloudfront.certificate_arn
 }
+
+output "dev_cloudfront_distribution_id" {
+  description = "CloudFront distribution serving the dev frontend and API."
+  value       = aws_cloudfront_distribution.dev.id
+}
+
+output "dev_cloudfront_domain_name" {
+  description = "CloudFront hostname used to verify the dev distribution before DNS cutover."
+  value       = aws_cloudfront_distribution.dev.domain_name
+}
