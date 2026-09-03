@@ -66,3 +66,8 @@ output "alb_certificate_arn" {
   description = "ACM certificate used by the regional application load balancer."
   value       = aws_acm_certificate_validation.alb.certificate_arn
 }
+
+output "cloudfront_certificate_arn" {
+  description = "ACM certificate used by CloudFront."
+  value       = aws_acm_certificate_validation.cloudfront.certificate_arn
+}
