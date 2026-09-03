@@ -106,4 +106,9 @@ locals {
       group = "ADMIN"
     }
   }
+
+  alb_certificate_validation_option = one([
+    for option in aws_acm_certificate.alb.domain_validation_options : option
+    if option.domain_name == aws_acm_certificate.alb.domain_name
+  ])
 }
