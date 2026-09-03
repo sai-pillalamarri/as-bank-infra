@@ -630,6 +630,23 @@ resource "aws_iam_role_policy" "infrastructure_apply_bootstrap_write" {
         }
       },
       {
+        Sid    = "ManageCloudFrontOriginSecret"
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:CreateSecret",
+          "secretsmanager:DeleteSecret",
+          "secretsmanager:DescribeSecret",
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:ListSecretVersionIds",
+          "secretsmanager:PutSecretValue",
+          "secretsmanager:RestoreSecret",
+          "secretsmanager:TagResource",
+          "secretsmanager:UntagResource",
+          "secretsmanager:UpdateSecret",
+        ]
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:as-bank/dev/edge/cloudfront-origin-header-??????"
+      },
+      {
         Sid    = "ManageCloudFrontDistribution"
         Effect = "Allow"
         Action = [

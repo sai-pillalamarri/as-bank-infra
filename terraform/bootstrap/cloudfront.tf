@@ -21,6 +21,11 @@ resource "aws_cloudfront_distribution" "dev" {
     domain_name = "origin-dev.aslearnings.online"
     origin_id   = "as-bank-dev-alb"
 
+    custom_header {
+      name  = "X-ASB-${random_password.cloudfront_origin_header_name.result}"
+      value = random_password.cloudfront_origin_header_value.result
+    }
+
     custom_origin_config {
       http_port              = 80
       https_port             = 443
@@ -85,5 +90,6 @@ resource "aws_cloudfront_distribution" "dev" {
   # The apply role gains CloudFront write access in the same Terraform run.
   depends_on = [
     aws_iam_role_policy.infrastructure_apply_bootstrap_write,
+    aws_secretsmanager_secret_version.cloudfront_origin_header,
   ]
 }
