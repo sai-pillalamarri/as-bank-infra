@@ -293,7 +293,7 @@ Pod Security Admission provides a second enforcement layer.
 
 Application namespaces also use default-deny NetworkPolicies with explicit traffic allowances.
 
-During Stage 6 verification, unsigned images, root containers, arbitrary HTTPS egress, and cross-namespace traffic were deliberately tested and rejected. :contentReference[oaicite:1]{index=1}
+During Stage 6 verification, unsigned images, root containers, arbitrary HTTPS egress, and cross-namespace traffic were deliberately tested and rejected. 
 
 ## Data Layer
 
@@ -323,7 +323,7 @@ destroy
 restore from latest complete snapshot
 ```
 
-Snapshot restore and retention behaviour have been tested in dev. :contentReference[oaicite:2]{index=2}
+Snapshot restore and retention behaviour have been tested in dev. 
 
 ## Authentication Infrastructure
 
@@ -461,7 +461,7 @@ The platform is built against explicit engineering targets:
 | Read latency | p95 below 300 ms |
 | Gross AWS spend | Below $30/month |
 
-These are learning-project targets used to drive engineering decisions and testing. They are not claims about real banking workloads. :contentReference[oaicite:3]{index=3}
+These are learning-project targets used to drive engineering decisions and testing. They are not claims about real banking workloads.
 
 ## Related Repositories
 
